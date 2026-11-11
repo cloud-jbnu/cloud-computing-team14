@@ -1,0 +1,4 @@
+# 팀원 OS(Windows/Mac)가 달라도 줄바꿈을 통일
+* text=auto eol=lf
+*.png binary
+*.jpg binary

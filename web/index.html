@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>컴공레이더</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="logo" href="#all"><span class="logo-dot" aria-hidden="true"></span>컴공레이더</a>
+      <label class="search">
+        <span class="sr-only">검색</span>
+        <input id="search" type="search" placeholder="제목, 학교, 회사 검색" autocomplete="off">
+      </label>
+      <a class="saved-link" href="#saved">북마크 <span id="savedCount" class="count">0</span></a>
+    </div>
+    <nav class="tabs" aria-label="카테고리">
+      <div class="tabs-inner" id="tabs"></div>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <section class="feed" aria-labelledby="feedTitle">
+      <div class="feed-head">
+        <h1 id="feedTitle">전체</h1>
+        <p id="feedDesc" class="muted"></p>
+      </div>
+
+      <div class="filters">
+        <div class="filter-row" id="subtypeRow" hidden>
+          <span class="filter-label" id="subtypeLabel">구분</span>
+          <div class="chips" id="subtypeChips"></div>
+        </div>
+        <div class="filter-row">
+          <span class="filter-label">분야</span>
+          <div class="chips" id="fieldChips"></div>
+        </div>
+      </div>
+
+      <div class="list-bar">
+        <span id="resultCount" class="muted"></span>
+        <label class="sort">
+          <span class="sr-only">정렬</span>
+          <select id="sort">
+            <option value="latest">최신순</option>
+            <option value="deadline">마감 임박순</option>
+          </select>
+        </label>
+      </div>
+
+      <ul class="list" id="list"></ul>
+      <div class="empty" id="empty" hidden>
+        <p><b>조건에 맞는 글이 없어요.</b></p>
+        <p class="muted">분야 필터를 줄이거나 검색어를 바꿔 보세요.</p>
+        <button class="btn" type="button" id="resetBtn">필터 초기화</button>
+      </div>
+    </section>
+
+    <aside class="rail">
+      <section class="panel">
+        <h2>마감 임박</h2>
+        <ol class="deadline-list" id="deadlineList"></ol>
+      </section>
+      <section class="panel">
+        <h2>오늘의 GitHub 트렌딩</h2>
+        <ol class="repo-list" id="repoList"></ol>
+      </section>
+      <p class="note">지금 보이는 글은 예시 데이터예요. 크롤러와 API를 연결하면 실제 글로 바뀝니다.</p>
+    </aside>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

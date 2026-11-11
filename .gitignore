@@ -1,0 +1,34 @@
+# 비밀 값
+.env
+.env.*
+!.env.example
+*.pem
+credentials*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# AWS 빌드 산출물
+.aws-sam/
+*.zip
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Node (나중에 프론트 도구를 쓰게 되면)
+node_modules/
+dist/
+
+# 에디터 / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 개인 도구 설정
+.claude/
