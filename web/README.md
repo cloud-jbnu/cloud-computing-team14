@@ -17,11 +17,20 @@ python -m http.server 8765 --directory web
 
 ```
 index.html      화면 뼈대
-css/style.css   스타일 (라이트/다크 자동)
+css/style.css   스타일 (기본 밝은 화면, 헤더 버튼으로 어두운 화면 전환)
 js/data.js      카테고리·분야 정의 + 예시 데이터
-js/api.js       데이터 접근 (API_BASE 비어 있으면 예시 데이터 사용)
+js/api.js       데이터 접근 (API_BASE 비어 있으면 예시 데이터 사용) + 주소 설정
+js/auth.js      로그인 (Cognito + 디스코드, PKCE)
 js/app.js       라우팅(#all #univ #contest #jobs #tech #saved), 필터, 렌더링
 ```
+
+## 로그인 · 키워드 알림
+
+디스코드로 로그인하면 오른쪽 "키워드 알림"에서 구독 키워드를 추가·삭제할 수 있습니다. 북마크는 로그인과 상관없이 브라우저에 저장됩니다.
+
+`js/api.js` 맨 위의 `API_BASE`, `AUTH_BASE`, `AUTH_CLIENT_ID` 세 값을 모두 넣어야 켜집니다. 값은 배포 후 Outputs에 나옵니다 ([infra/README.md](../infra/README.md)). 비어 있으면 로그인 버튼을 눌렀을 때 안내 문구만 나옵니다.
+
+로그인 후 돌아오는 주소는 `http://localhost:8765/`로 등록돼 있으므로, 로컬에서는 꼭 이 포트로 열어야 합니다.
 
 ## 백엔드 연결
 
