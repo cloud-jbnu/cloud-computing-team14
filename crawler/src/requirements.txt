@@ -1,0 +1,4 @@
+# Lambda 배포 패키지에 들어갈 라이브러리 (sam build가 읽음)
+# boto3는 Lambda 런타임에 기본 포함
+requests>=2.32
+beautifulsoup4>=4.12

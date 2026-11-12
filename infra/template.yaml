@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  컴공레이더 서버리스 백엔드 (AWS Academy Learner Lab용).
+  Learner Lab은 IAM 역할을 새로 만들 수 없으므로 모든 Lambda가 미리 만들어진 LabRole을 씁니다.
+
+Parameters:
+  CrawlSchedule:
+    Type: String
+    Default: rate(1 hour)
+    Description: 크롤러 실행 주기 (예 rate(30 minutes), cron(0 * * * ? *))
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [x86_64]
+    MemorySize: 256
+    Timeout: 60
+    Environment:
+      Variables:
+        ITEMS_TABLE: !Ref ItemsTable
+        SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
+        RAW_BUCKET: !Ref RawBucket
+  HttpApi:
+    CorsConfiguration:
+      AllowOrigins: ["*"]
+      AllowMethods: [GET, OPTIONS]
+      AllowHeaders: [Content-Type]
+
+Resources:
+  # ── 저장소 ─────────────────────────────────────────────
+  ItemsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: id, AttributeType: S }
+        - { AttributeName: category, AttributeType: S }
+        - { AttributeName: date, AttributeType: S }
+      KeySchema:
+        - { AttributeName: id, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: category-date-index      # 카테고리별 최신순 조회
+          KeySchema:
+            - { AttributeName: category, KeyType: HASH }
+            - { AttributeName: date, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+
+  SubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: userId, AttributeType: S }
+        - { AttributeName: keyword, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userId, KeyType: HASH }
+        - { AttributeName: keyword, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: keyword-index            # 이 키워드를 구독한 사용자 찾기
+          KeySchema:
+            - { AttributeName: keyword, KeyType: HASH }
+            - { AttributeName: userId, KeyType: RANGE }
+          Projection: { ProjectionType: KEYS_ONLY }
+
+  RawBucket:
+    Type: AWS::S3::Bucket                      # 원문 HTML 백업
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # ── 크롤러 (EventBridge가 주기 실행) ──────────────────
+  CrawlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-crawler"
+      CodeUri: ../crawler/src
+      Handler: handler.lambda_handler
+      Timeout: 300
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Events:
+        Schedule:
+          Type: Schedule                       # EventBridge 규칙 (역할 생성 불필요)
+          Properties:
+            Schedule: !Ref CrawlSchedule
+
+  # ── 웹이 쓰는 목록 API: GET /items ─────────────────────
+  ItemsApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-items-api"
+      CodeUri: ../api/src
+      Handler: items.lambda_handler
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Events:
+        ListItems:
+          Type: HttpApi
+          Properties:
+            Path: /items
+            Method: GET
+
+Outputs:
+  ApiUrl:
+    Description: web/js/api.js의 API_BASE에 넣을 주소
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  ItemsTableName:
+    Value: !Ref ItemsTable
+  SubscriptionsTableName:
+    Value: !Ref SubscriptionsTable
+  RawBucketName:
+    Value: !Ref RawBucket
