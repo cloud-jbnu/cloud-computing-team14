@@ -1,0 +1,14 @@
+# sam deploy 기본값. 비밀 값은 넣지 않습니다.
+version = 0.1
+
+[default.global.parameters]
+stack_name = "csradar"
+
+[default.build.parameters]
+template_file = "template.yaml"
+
+[default.deploy.parameters]
+region = "us-east-1"            # Learner Lab에서 허용된 리전
+resolve_s3 = true               # 배포 파일용 S3 버킷을 SAM이 자동으로 만듦
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true        # 바뀌는 내용을 보여주고 y/N 확인

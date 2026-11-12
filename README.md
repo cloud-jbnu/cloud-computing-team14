@@ -13,8 +13,9 @@
 |---|---|---|
 | [`web/`](web/) | 프론트엔드 (HTML/CSS/JS) | |
 | [`crawler/`](crawler/) | 공지·공모전·채용·트렌드 크롤러 (Python, AWS Lambda) | |
+| [`api/`](api/) | 웹이 쓰는 목록 API (`GET /items`, Lambda) | |
 | [`bot/`](bot/) | 디스코드 봇 (구독 명령어, DM 발송) | |
-| [`infra/`](infra/) | AWS 설정 (Lambda, EventBridge, DynamoDB, S3, API Gateway) | |
+| [`infra/`](infra/) | AWS 설정 (SAM 템플릿, Learner Lab 배포 가이드) | |
 | [`docs/`](docs/) | API 명세, 데이터 형식, 회의록 | |
 
 담당 칸은 팀에서 정해서 채워 주세요.
