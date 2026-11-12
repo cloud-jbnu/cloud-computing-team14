@@ -9,6 +9,17 @@ Parameters:
     Type: String
     Default: rate(1 hour)
     Description: 크롤러 실행 주기 (예 rate(30 minutes), cron(0 * * * ? *))
+  DiscordClientId:
+    Type: String
+    Description: 디스코드 개발자 포털 → OAuth2의 Client ID
+  DiscordClientSecret:
+    Type: String
+    NoEcho: true
+    Description: 디스코드 개발자 포털 → OAuth2의 Client Secret (배포할 때만 넘기고 파일에 적지 않습니다)
+  WebOrigin:
+    Type: String
+    Default: http://localhost:8765
+    Description: 웹이 열리는 주소. 로그인 후 여기로 돌아옵니다 (끝에 / 없이)
 
 Globals:
   Function:
@@ -24,8 +35,16 @@ Globals:
   HttpApi:
     CorsConfiguration:
       AllowOrigins: ["*"]
-      AllowMethods: [GET, OPTIONS]
-      AllowHeaders: [Content-Type]
+      AllowMethods: [GET, PUT, DELETE, OPTIONS]
+      AllowHeaders: [Content-Type, Authorization]
+    Auth:
+      Authorizers:
+        CognitoAuth:                           # 로그인이 필요한 경로에만 붙입니다 (GET /items는 공개)
+          IdentitySource: $request.header.Authorization
+          JwtConfiguration:
+            issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}"
+            audience:
+              - !Ref UserPoolClient
 
 Resources:
   # ── 저장소 ─────────────────────────────────────────────
@@ -102,10 +121,93 @@ Resources:
             Path: /items
             Method: GET
 
+  # ── 로그인: Cognito User Pool + 디스코드(OIDC) ─────────
+  # User Pool은 IAM 역할이 필요 없어서 Learner Lab에서도 만들 수 있습니다.
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${AWS::StackName}-users"
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain         # 로그인 주소: https://<Domain>.auth.<리전>.amazoncognito.com
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub "${AWS::StackName}-${AWS::AccountId}"
+
+  DiscordProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      UserPoolId: !Ref UserPool
+      ProviderName: Discord
+      ProviderType: OIDC
+      ProviderDetails:
+        client_id: !Ref DiscordClientId
+        client_secret: !Ref DiscordClientSecret
+        oidc_issuer: https://discord.com       # /.well-known/openid-configuration을 Cognito가 읽어 갑니다
+        authorize_scopes: openid identify
+        attributes_request_method: GET
+      AttributeMapping:
+        username: sub                          # 디스코드 사용자 ID → Cognito 사용자 이름 "discord_<ID>"
+        preferred_username: preferred_username
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: DiscordProvider
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: web
+      GenerateSecret: false                    # 브라우저에서 쓰므로 비밀 값 없이 PKCE로 로그인
+      SupportedIdentityProviders: [Discord]    # 디스코드 로그인만 허용
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, profile]
+      ExplicitAuthFlows: [ALLOW_REFRESH_TOKEN_AUTH]
+      CallbackURLs:
+        - !Sub "${WebOrigin}/"
+      LogoutURLs:
+        - !Sub "${WebOrigin}/"
+
+  # ── 로그인한 사용자의 키워드 구독: /me/subscriptions ───
+  MeApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-me-api"
+      CodeUri: ../api/src
+      Handler: me.lambda_handler
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Events:
+        ListSubscriptions:
+          Type: HttpApi
+          Properties:
+            Path: /me/subscriptions
+            Method: GET
+            Auth: { Authorizer: CognitoAuth }
+        AddSubscription:
+          Type: HttpApi
+          Properties:
+            Path: /me/subscriptions
+            Method: PUT
+            Auth: { Authorizer: CognitoAuth }
+        RemoveSubscription:
+          Type: HttpApi
+          Properties:
+            Path: /me/subscriptions
+            Method: DELETE
+            Auth: { Authorizer: CognitoAuth }
+
 Outputs:
   ApiUrl:
     Description: web/js/api.js의 API_BASE에 넣을 주소
     Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  AuthUrl:
+    Description: web/js/api.js의 AUTH_BASE에 넣을 주소
+    Value: !Sub "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+  AuthClientId:
+    Description: web/js/api.js의 AUTH_CLIENT_ID에 넣을 값
+    Value: !Ref UserPoolClient
+  DiscordRedirectUri:
+    Description: 디스코드 개발자 포털 → OAuth2 → Redirects에 등록할 주소
+    Value: !Sub "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/oauth2/idpresponse"
   ItemsTableName:
     Value: !Ref ItemsTable
   SubscriptionsTableName:
