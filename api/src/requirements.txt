@@ -1,1 +1,2 @@
-# boto3는 Lambda 런타임에 기본 포함되어 있어 따로 넣지 않습니다.
+# boto3 is already included in the Lambda runtime, so nothing to add here.
+# Keep this file ASCII-only: pip on Korean Windows reads it as cp949 during sam build.

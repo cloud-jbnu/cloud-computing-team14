@@ -1,4 +1,5 @@
-# Lambda 배포 패키지에 들어갈 라이브러리 (sam build가 읽음)
-# boto3는 Lambda 런타임에 기본 포함
+# Libraries bundled into the Lambda package (read by sam build).
+# boto3 is already included in the Lambda runtime.
+# Keep this file ASCII-only: pip on Korean Windows reads it as cp949 during sam build.
 requests>=2.32
 beautifulsoup4>=4.12
