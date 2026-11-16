@@ -16,6 +16,11 @@ Parameters:
     Type: String
     NoEcho: true
     Description: 디스코드 개발자 포털 → OAuth2의 Client Secret (배포할 때만 넘기고 파일에 적지 않습니다)
+  DiscordBotToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: 디스코드 개발자 포털 → Bot의 Token. 새 글 DM 알림에 씁니다 (비워 두면 알림 꺼짐, 파일에 적지 않습니다)
   WebOrigin:
     Type: String
     Default: http://localhost:8765
@@ -100,6 +105,9 @@ Resources:
       Handler: handler.lambda_handler
       Timeout: 300
       Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Environment:
+        Variables:
+          DISCORD_BOT_TOKEN: !Ref DiscordBotToken   # 새 글 DM 알림 (crawler/src/notify.py)
       Events:
         Schedule:
           Type: Schedule                       # EventBridge 규칙 (역할 생성 불필요)
