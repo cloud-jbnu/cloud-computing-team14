@@ -1,4 +1,5 @@
-# sam deploy 기본값. 비밀 값은 넣지 않습니다.
+# sam deploy defaults. Do not put secrets here.
+# Keep this file ASCII-only: SAM CLI on Korean Windows reads it as cp949 and fails on UTF-8 text.
 version = 0.1
 
 [default.global.parameters]
@@ -8,7 +9,7 @@ stack_name = "csradar"
 template_file = "template.yaml"
 
 [default.deploy.parameters]
-region = "us-east-1"            # Learner Lab에서 허용된 리전
-resolve_s3 = true               # 배포 파일용 S3 버킷을 SAM이 자동으로 만듦
+region = "us-east-1"            # region allowed in Learner Lab
+resolve_s3 = true               # let SAM create the S3 bucket for deploy artifacts
 capabilities = "CAPABILITY_IAM"
-confirm_changeset = true        # 바뀌는 내용을 보여주고 y/N 확인
+confirm_changeset = true        # show the change set and ask y/N
