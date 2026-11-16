@@ -104,6 +104,5 @@ sam delete
 ## 아직 안 한 것
 
 - 디스코드 봇이 구독을 DynamoDB(`SUBSCRIPTIONS_TABLE`)에 저장하는 부분 — 지금은 봇 메모리에만 있어서 웹에서 넣은 구독과 아직 합쳐지지 않습니다. 형식은 [`docs/api.md`](../docs/api.md) 참고
-- 크롤러가 DynamoDB에 저장하는 부분 (`crawler/src/handler.py`의 `save()`)
 - 디스코드 봇의 Interactions Endpoint (Lambda + HTTP API) — 봇 담당과 방식 확정 후 추가
 - 디스코드 토큰은 SSM Parameter Store에 넣고 Lambda가 읽게 할 예정

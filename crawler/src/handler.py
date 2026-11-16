@@ -1,9 +1,13 @@
 """Lambda 진입점. EventBridge가 주기적으로 호출합니다.
 
-각 수집기(sources/*.py)의 fetch()를 돌려 Item 목록을 모은 뒤 저장합니다.
-저장(DynamoDB/S3) 부분은 infra 담당과 테이블 설계가 정해지면 채웁니다.
+각 수집기(sources/*.py)의 fetch()를 돌려 Item 목록을 모은 뒤 DynamoDB(ITEMS_TABLE)에 저장합니다.
+이미 저장된 id는 건너뛰고 새 글만 넣습니다.
+
+로컬에서 `python src/handler.py`로 실행하면 저장하지 않고 수집 결과만 출력합니다.
 """
 import json
+import os
+import re
 
 from sources import example_univ
 
@@ -11,6 +15,12 @@ from sources import example_univ
 SOURCES = [
     example_univ,
 ]
+
+# docs/api.md의 Item 형식
+CATEGORIES = {"univ", "contest", "jobs", "tech"}
+FIELDS = {"backend", "frontend", "ai", "data", "cloud", "network", "security", "mobile"}
+REQUIRED_TEXT = ("id", "subtype", "source", "title", "url")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def collect():
@@ -23,17 +33,83 @@ def collect():
     return items
 
 
-def save(items):
-    # TODO: DynamoDB에 이미 있는 id는 건너뛰고 새 글만 저장
-    print(f"{len(items)}건 수집")
+def clean(item):
+    """Item을 저장할 모양으로 정리합니다. 형식이 틀리면 (None, 이유)를 돌려줍니다."""
+    if not isinstance(item, dict):
+        return None, "딕셔너리가 아님"
+    out = {}
+    for key in REQUIRED_TEXT:
+        value = item.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return None, f"{key} 없음"
+        out[key] = value.strip()
+
+    if item.get("category") not in CATEGORIES:
+        return None, f"category가 잘못됨: {item.get('category')!r}"
+    out["category"] = item["category"]
+
+    if not isinstance(item.get("date"), str) or not DATE_RE.match(item["date"]):
+        return None, f"date 형식이 잘못됨: {item.get('date')!r}"
+    out["date"] = item["date"]
+
+    deadline = item.get("deadline")
+    if deadline:
+        if not isinstance(deadline, str) or not DATE_RE.match(deadline):
+            return None, f"deadline 형식이 잘못됨: {deadline!r}"
+        out["deadline"] = deadline
+
+    fields = item.get("fields") or []
+    out["fields"] = [f for f in fields if f in FIELDS] if isinstance(fields, list) else []
+
+    repo = item.get("repo")
+    if isinstance(repo, dict):
+        out["repo"] = {"lang": str(repo.get("lang") or ""), "starsToday": int(repo.get("starsToday") or 0)}
+
+    summary = item.get("summary")
+    if isinstance(summary, list) and summary:
+        out["summary"] = [str(s) for s in summary]
+    return out, None
+
+
+def save(items, table=None):
+    """새 글만 저장하고 {"saved", "skipped", "invalid"} 개수를 돌려줍니다."""
+    if table is None:
+        import boto3  # Lambda에만 필요하므로 로컬 실행 때는 불러오지 않음
+        table = boto3.resource("dynamodb").Table(os.environ["ITEMS_TABLE"])
+    errors = table.meta.client.exceptions
+
+    stats = {"saved": 0, "skipped": 0, "invalid": 0}
+    seen = set()
+    for raw in items:
+        try:
+            item, reason = clean(raw)
+        except (TypeError, ValueError) as e:  # 예: starsToday가 숫자가 아님
+            item, reason = None, str(e)
+        if item is None:
+            stats["invalid"] += 1
+            print(f"형식 오류로 건너뜀 ({reason}): {raw!r:.200}")
+            continue
+        if item["id"] in seen:  # 같은 실행 안에서 중복
+            stats["skipped"] += 1
+            continue
+        seen.add(item["id"])
+        try:
+            # 같은 id가 이미 있으면 덮어쓰지 않고 실패하게 해서 새 글만 남깁니다.
+            table.put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
+            stats["saved"] += 1
+        except errors.ConditionalCheckFailedException:
+            stats["skipped"] += 1
+    print(f"수집 {len(items)}건 → 새로 저장 {stats['saved']}, 이미 있음 {stats['skipped']}, 형식 오류 {stats['invalid']}")
+    return stats
 
 
 def lambda_handler(event, context):
     items = collect()
-    save(items)
-    return {"statusCode": 200, "body": json.dumps({"collected": len(items)})}
+    stats = save(items)
+    return {"statusCode": 200, "body": json.dumps({"collected": len(items), **stats})}
 
 
 if __name__ == "__main__":
     for it in collect():
-        print(it)
+        item, reason = clean(it)
+        print(item if item else f"형식 오류 ({reason}): {it}")
