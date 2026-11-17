@@ -36,6 +36,7 @@ Globals:
       Variables:
         ITEMS_TABLE: !Ref ItemsTable
         SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
+        SEEN_TABLE: !Ref SeenTable
         RAW_BUCKET: !Ref RawBucket
   HttpApi:
     CorsConfiguration:
@@ -86,6 +87,18 @@ Resources:
             - { AttributeName: keyword, KeyType: HASH }
             - { AttributeName: userId, KeyType: RANGE }
           Projection: { ProjectionType: KEYS_ONLY }
+
+  SeenTable:
+    Type: AWS::DynamoDB::Table                 # 사이트 간 중복 비교용 키 (crawler/src/dedupe.py)
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: seenKey, AttributeType: S }
+      KeySchema:
+        - { AttributeName: seenKey, KeyType: HASH }
+      TimeToLiveSpecification:                 # expiresAt(초 단위 시각)이 지난 키는 DynamoDB가 지웁니다
+        AttributeName: expiresAt
+        Enabled: true
 
   RawBucket:
     Type: AWS::S3::Bucket                      # 원문 HTML 백업
@@ -220,5 +233,7 @@ Outputs:
     Value: !Ref ItemsTable
   SubscriptionsTableName:
     Value: !Ref SubscriptionsTable
+  SeenTableName:
+    Value: !Ref SeenTable
   RawBucketName:
     Value: !Ref RawBucket
