@@ -1,15 +1,17 @@
 """Lambda 진입점. EventBridge가 주기적으로 호출합니다.
 
-각 수집기(sources/*.py)의 fetch()를 돌려 Item 목록을 모은 뒤 DynamoDB(ITEMS_TABLE)에 저장합니다.
-이미 저장된 id는 건너뛰고 새 글만 넣습니다.
-새로 저장된 글은 notify.py가 키워드 구독자에게 디스코드 DM으로 알립니다.
+  1. collect   각 수집기(sources/*.py)의 fetch()를 돌려 Item 목록을 모읍니다.
+  2. find_new  형식 검사 → 중복 제거(dedupe.py)를 거쳐 처음 보는 글만 남깁니다.
+  3. save      새 글을 DynamoDB(ITEMS_TABLE)에 저장하고, 중복 비교용 키를 SEEN_TABLE에 적습니다.
+  4. notify    새 글을 키워드 구독자에게 디스코드 DM으로 알립니다 (notify.py).
 
-로컬에서 `python src/handler.py`로 실행하면 저장하지 않고 수집 결과만 출력합니다.
+로컬에서 `python src/handler.py`로 실행하면 저장하지 않고 새 글로 판단한 결과만 출력합니다.
 """
 import json
 import os
 import re
 
+import dedupe
 import notify
 
 # 수집기 등록 — 새 사이트를 만들면 여기에 추가
@@ -71,52 +73,86 @@ def clean(item):
     return out, None
 
 
-def save(items, table=None):
-    """새 글만 저장하고 ({"saved", "skipped", "invalid"} 개수, 새로 저장한 글 목록)을 돌려줍니다."""
-    if table is None:
-        import boto3  # Lambda에만 필요하므로 로컬 실행 때는 불러오지 않음
-        table = boto3.resource("dynamodb").Table(os.environ["ITEMS_TABLE"])
-    errors = table.meta.client.exceptions
-
-    stats = {"saved": 0, "skipped": 0, "invalid": 0}
-    new_items = []
-    seen = set()
-    for raw in items:
+def validate(raw_items):
+    """형식이 맞는 글만 정리해서 돌려줍니다. (글 목록, 형식 오류 개수)"""
+    items, invalid = [], 0
+    for raw in raw_items:
         try:
             item, reason = clean(raw)
         except (TypeError, ValueError) as e:  # 예: starsToday가 숫자가 아님
             item, reason = None, str(e)
         if item is None:
-            stats["invalid"] += 1
+            invalid += 1
             print(f"형식 오류로 건너뜀 ({reason}): {raw!r:.200}")
-            continue
-        if item["id"] in seen:  # 같은 실행 안에서 중복
-            stats["skipped"] += 1
-            continue
-        seen.add(item["id"])
+        else:
+            items.append(item)
+    return items, invalid
+
+
+def find_new(raw_items, items_table=None, seen_table=None):
+    """처음 보는 글만 남깁니다. (새 글 목록, 단계별 개수)
+
+    테이블을 주지 않으면(로컬 실행) 이번에 모은 글끼리만 비교합니다.
+    """
+    stats = {"collected": len(raw_items)}
+    items, stats["invalid"] = validate(raw_items)
+    items, stats["dupInRun"] = dedupe.in_run(items)
+
+    stats["existing"] = 0
+    if items_table is not None:
+        known = dedupe.existing_ids(items_table, items)
+        stats["existing"] = len(known)
+        items = [it for it in items if it["id"] not in known]
+
+    items, stats["dupCrossSite"] = dedupe.cross_site(items, seen_table)
+    stats["new"] = len(items)
+    print(
+        f"수집 {stats['collected']}건 → 형식 오류 {stats['invalid']}, 실행 내 중복 {stats['dupInRun']}, "
+        f"이미 있음 {stats['existing']}, 사이트 간 중복 {stats['dupCrossSite']}, 새 글 {stats['new']}"
+    )
+    return items, stats
+
+
+def save(items, table):
+    """새 글을 저장하고 실제로 저장된 글 목록을 돌려줍니다.
+
+    find_new가 이미 걸렀지만, 그 사이 다른 실행이 같은 글을 넣었을 수 있어
+    같은 id가 있으면 덮어쓰지 않고 건너뜁니다.
+    """
+    errors = table.meta.client.exceptions
+    saved = []
+    for item in items:
         try:
-            # 같은 id가 이미 있으면 덮어쓰지 않고 실패하게 해서 새 글만 남깁니다.
             table.put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
-            stats["saved"] += 1
-            new_items.append(item)
+            saved.append(item)
         except errors.ConditionalCheckFailedException:
-            stats["skipped"] += 1
-    print(f"수집 {len(items)}건 → 새로 저장 {stats['saved']}, 이미 있음 {stats['skipped']}, 형식 오류 {stats['invalid']}")
-    return stats, new_items
+            pass
+    print(f"저장 {len(saved)}건")
+    return saved
 
 
 def lambda_handler(event, context):
-    items = collect()
-    stats, new_items = save(items)
+    import boto3  # Lambda에만 필요하므로 로컬 실행 때는 불러오지 않음
+    db = boto3.resource("dynamodb")
+    items_table = db.Table(os.environ["ITEMS_TABLE"])
+    seen_table = db.Table(os.environ["SEEN_TABLE"])
+
+    new_items, stats = find_new(collect(), items_table, seen_table)
+    saved = save(new_items, items_table)
+    stats["saved"] = len(saved)
     try:
-        notified = notify.notify(new_items)
+        dedupe.record(seen_table, saved)
+    except Exception as e:  # 키를 못 적어도 저장은 끝났으므로 계속 (다음에 사이트 간 중복을 못 잡을 수 있음)
+        print(f"중복 비교용 키 기록 실패: {e}")
+    try:
+        notified = notify.notify(saved)
     except Exception as e:  # 알림이 실패해도 저장은 이미 끝났으므로 실행 자체는 성공으로
         print(f"알림 실패: {e}")
         notified = {"error": str(e)}
-    return {"statusCode": 200, "body": json.dumps({"collected": len(items), **stats, "notify": notified}, ensure_ascii=False)}
+    return {"statusCode": 200, "body": json.dumps({**stats, "notify": notified}, ensure_ascii=False)}
 
 
 if __name__ == "__main__":
-    for it in collect():
-        item, reason = clean(it)
-        print(item if item else f"형식 오류 ({reason}): {it}")
+    new_items, _ = find_new(collect())
+    for it in new_items:
+        print(it)
