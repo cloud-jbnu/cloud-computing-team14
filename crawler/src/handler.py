@@ -2,6 +2,7 @@
 
 각 수집기(sources/*.py)의 fetch()를 돌려 Item 목록을 모은 뒤 DynamoDB(ITEMS_TABLE)에 저장합니다.
 이미 저장된 id는 건너뛰고 새 글만 넣습니다.
+새로 저장된 글은 notify.py가 키워드 구독자에게 디스코드 DM으로 알립니다.
 
 로컬에서 `python src/handler.py`로 실행하면 저장하지 않고 수집 결과만 출력합니다.
 """
@@ -9,6 +10,7 @@ import json
 import os
 import re
 
+import notify
 from sources import example_univ
 
 # 수집기 등록 — 새 사이트를 만들면 여기에 추가
@@ -72,13 +74,14 @@ def clean(item):
 
 
 def save(items, table=None):
-    """새 글만 저장하고 {"saved", "skipped", "invalid"} 개수를 돌려줍니다."""
+    """새 글만 저장하고 ({"saved", "skipped", "invalid"} 개수, 새로 저장한 글 목록)을 돌려줍니다."""
     if table is None:
         import boto3  # Lambda에만 필요하므로 로컬 실행 때는 불러오지 않음
         table = boto3.resource("dynamodb").Table(os.environ["ITEMS_TABLE"])
     errors = table.meta.client.exceptions
 
     stats = {"saved": 0, "skipped": 0, "invalid": 0}
+    new_items = []
     seen = set()
     for raw in items:
         try:
@@ -97,16 +100,22 @@ def save(items, table=None):
             # 같은 id가 이미 있으면 덮어쓰지 않고 실패하게 해서 새 글만 남깁니다.
             table.put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
             stats["saved"] += 1
+            new_items.append(item)
         except errors.ConditionalCheckFailedException:
             stats["skipped"] += 1
     print(f"수집 {len(items)}건 → 새로 저장 {stats['saved']}, 이미 있음 {stats['skipped']}, 형식 오류 {stats['invalid']}")
-    return stats
+    return stats, new_items
 
 
 def lambda_handler(event, context):
     items = collect()
-    stats = save(items)
-    return {"statusCode": 200, "body": json.dumps({"collected": len(items), **stats})}
+    stats, new_items = save(items)
+    try:
+        notified = notify.notify(new_items)
+    except Exception as e:  # 알림이 실패해도 저장은 이미 끝났으므로 실행 자체는 성공으로
+        print(f"알림 실패: {e}")
+        notified = {"error": str(e)}
+    return {"statusCode": 200, "body": json.dumps({"collected": len(items), **stats, "notify": notified}, ensure_ascii=False)}
 
 
 if __name__ == "__main__":

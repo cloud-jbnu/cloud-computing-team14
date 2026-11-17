@@ -56,10 +56,11 @@ AWS 리소스는 전부 [`template.yaml`](template.yaml)(AWS SAM) 하나로 관�
 ```bash
 cd infra
 sam build
-sam deploy --parameter-overrides DiscordClientId=<Client ID> DiscordClientSecret=<Client Secret>
+sam deploy --parameter-overrides DiscordClientId=<Client ID> DiscordClientSecret=<Client Secret> DiscordBotToken=<Bot Token>
 ```
 
 - `DiscordClientId`, `DiscordClientSecret`은 기본값이 없어서 배포할 때마다 넘겨야 합니다.
+- `DiscordBotToken`(개발자 포털 → **Bot → Token**)은 새 글 DM 알림용입니다. 빼면 알림 없이 저장만 합니다. 다음 배포 때 다시 넘기지 않으면 SAM이 이전 값을 기억하지 못하고 빈 값이 되니 매번 같이 넘겨 주세요.
 - 웹을 `http://localhost:8765`가 아닌 주소에서 열 거라면 `WebOrigin=https://내-주소`도 같이 넘깁니다 (끝에 `/` 없이). 로그인 후 돌아올 주소로 등록됩니다.
 - 바뀌는 리소스 목록이 나오면 확인하고 `y`.
 - 끝나면 **Outputs** 값을 `web/js/api.js` 맨 위에 넣습니다.
@@ -103,6 +104,5 @@ sam delete
 
 ## 아직 안 한 것
 
-- 디스코드 봇이 구독을 DynamoDB(`SUBSCRIPTIONS_TABLE`)에 저장하는 부분 — 지금은 봇 메모리에만 있어서 웹에서 넣은 구독과 아직 합쳐지지 않습니다. 형식은 [`docs/api.md`](../docs/api.md) 참고
-- 디스코드 봇의 Interactions Endpoint (Lambda + HTTP API) — 봇 담당과 방식 확정 후 추가
+- 디스코드 봇 명령어(`/구독` 등)를 Interactions Endpoint(Lambda + HTTP API)로 옮겨 구독 테이블을 쓰게 하기 — 지금은 봇 메모리에만 있어서 웹에서 넣은 구독과 합쳐지지 않습니다. 구독 관리는 웹에서, 새 글 DM은 크롤러에서 이미 됩니다
 - 디스코드 토큰은 SSM Parameter Store에 넣고 Lambda가 읽게 할 예정
