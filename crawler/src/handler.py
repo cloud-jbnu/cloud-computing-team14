@@ -13,14 +13,19 @@ import re
 
 import dedupe
 import notify
-from sources import dev_event, geeknews, github_trending, jumpit
+from sources import dev_event, geeknews, github_trending, jumpit, univ_cbnu, univ_jbnu, univ_knu, univ_pnu
 
-# 수집기 등록 — 새 사이트를 만들면 여기에 추가
+# 수집기 등록 — 새 사이트를 만들면 여기에 추가.
+# 다른 사이트에 같은 글이 있으면 여기서 먼저 나온 사이트의 글만 남습니다 (dedupe.cross_site).
 SOURCES = [
-    github_trending,
-    geeknews,
-    dev_event,
+    univ_jbnu,
+    univ_cbnu,
+    univ_knu,
+    univ_pnu,
     jumpit,
+    dev_event,
+    geeknews,
+    github_trending,
 ]
 
 # docs/api.md의 Item 형식
