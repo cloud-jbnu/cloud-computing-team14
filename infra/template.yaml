@@ -21,6 +21,15 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: 디스코드 개발자 포털 → Bot의 Token. 새 글 DM 알림에 씁니다 (비워 두면 알림 꺼짐, 파일에 적지 않습니다)
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Google AI Studio에서 발급한 Gemini API 키. 새 글 AI 요약에 씁니다 (비워 두면 요약 꺼짐, 파일에 적지 않습니다)
+  GeminiModel:
+    Type: String
+    Default: gemini-flash-lite-latest
+    Description: 요약에 쓸 Gemini 모델 이름
   WebOrigin:
     Type: String
     Default: http://localhost:8765
@@ -121,6 +130,8 @@ Resources:
       Environment:
         Variables:
           DISCORD_BOT_TOKEN: !Ref DiscordBotToken   # 새 글 DM 알림 (crawler/src/notify.py)
+          GEMINI_API_KEY: !Ref GeminiApiKey         # 새 글 AI 요약 (crawler/src/summarize.py)
+          GEMINI_MODEL: !Ref GeminiModel
       Events:
         Schedule:
           Type: Schedule                       # EventBridge 규칙 (역할 생성 불필요)
