@@ -141,3 +141,48 @@ def test_apply_merges_fields_and_leaves_unsummarized_items():
     summarize.apply(items, {"a-1": {"summary": ["요약"], "fields": ["ai", "cloud"]}})
     assert items[0] == {"id": "a-1", "fields": ["ai", "cloud"], "summary": ["요약"]}
     assert items[1] == {"id": "a-2", "fields": ["cloud"]}            # 요약 실패한 글은 그대로
+
+
+# ── 제목 되풀이 빼기 ──────────────────────────────────────────
+@pytest.mark.parametrize("title, line", [
+    ("2026학년도 AI Agent 활용 문제해결 경진대회 운영 안내", "2026학년도 AI Agent 활용 문제해결 경진대회를 운영함."),
+    ("[레드/블루벨트 필수선택] 2026학년도 2학기 대기업 직무적성검사 집중교육 참여자 모집 곧 마감!!",
+     "2026학년도 2학기 대기업 직무적성검사 집중교육 참여자 모집이 마감될 예정임."),
+])
+def test_repeats_title(title, line):
+    assert summarize.repeats_title(line, title)
+
+
+@pytest.mark.parametrize("title, line", [
+    ("[SW중심대학사업단] 2026학년 하반기 SW역량인증제 접수 안내 (레벨 합격시 J-Point 부여)",
+     "2026년 하반기 SW역량인증제 접수가 11월 18일까지 진행됨."),
+    ("[언어교육부] 12월 19일(토) 모의토익 실시 안내", "언어교육부에서 주관하는 모의토익이 12월 19일에 실시됨."),
+    ("2026학년도 동계 계절수업 수강신청 안내", "2026학년도 동계 계절수업 수강신청은 11월 18일 오전 9시부터 19일 오후 5시까지 진행됨."),
+    ("", "제목이 없으면 비교하지 않음"),
+])
+def test_keeps_lines_with_new_information(title, line):
+    assert not summarize.repeats_title(line, title)
+
+
+def test_title_repeats_are_dropped_but_fields_kept():
+    items = [{"id": "jbnu-1", "category": "univ", "source": "전북대", "fields": [],
+              "title": "2026학년도 AI Agent 활용 문제해결 경진대회 운영 안내"},
+             {"id": "jbnu-2", "category": "univ", "source": "전북대", "fields": [],
+              "title": "2026학년도 2학기 Adobe 생성형 AI 활용 교육 안내"},
+             {"id": "jbnu-3", "category": "univ", "source": "전북대", "fields": [],
+              "title": "[레드/블루벨트 필수선택] 2026학년도 2학기 대기업 직무적성검사 집중교육 참여자 모집 곧 마감!!"}]
+    rows = [
+        {"id": "jbnu-1", "summary": ["2026학년도 AI Agent 활용 문제해결 경진대회를 운영함.",
+                                     "참여를 원하는 학생은 특강 신청을 진행할 수 있음."], "fields": ["ai"]},
+        {"id": "jbnu-2", "summary": ["2026학년도 2학기 Adobe 생성형 AI 활용 교육을 운영함."], "fields": ["ai"]},
+        {"id": "jbnu-3", "summary": ["2026학년도 2학기 대기업 직무적성검사 집중교육 참여자 모집이 마감될 예정임."], "fields": []},
+    ]
+    results, _ = run(items, [FakeResponse(rows=rows)])
+    assert results["jbnu-1"]["summary"] == ["참여를 원하는 학생은 특강 신청을 진행할 수 있음."]
+    assert results["jbnu-2"] == {"summary": [], "fields": ["ai"]}
+    assert "jbnu-3" not in results                                  # 남는 것이 없으면 결과에서 빠짐
+
+    summarize.apply(items, results)
+    assert "summary" in items[0]
+    assert "summary" not in items[1] and items[1]["fields"] == ["ai"]
+    assert "summary" not in items[2]

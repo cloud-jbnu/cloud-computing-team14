@@ -181,7 +181,7 @@ def add_summaries(items, raw_items):
     try:
         results = summarize.summarize(items, load_bodies(items, raw_items))
         summarize.apply(items, results)
-        return len(results)
+        return sum(1 for r in results.values() if r["summary"])
     except Exception as e:
         print(f"요약 실패: {e}")
         return 0
