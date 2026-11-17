@@ -21,6 +21,10 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: 디스코드 개발자 포털 → Bot의 Token. 새 글 DM 알림에 씁니다 (비워 두면 알림 꺼짐, 파일에 적지 않습니다)
+  DiscordGuildId:
+    Type: String
+    Default: ""
+    Description: 새 글을 올릴 디스코드 서버 ID. 봇 토큰과 함께 있어야 채널 게시가 켜집니다 (비워 두면 꺼짐)
   GeminiApiKey:
     Type: String
     NoEcho: true
@@ -130,6 +134,7 @@ Resources:
       Environment:
         Variables:
           DISCORD_BOT_TOKEN: !Ref DiscordBotToken   # 새 글 DM 알림 (crawler/src/notify.py)
+          DISCORD_GUILD_ID: !Ref DiscordGuildId     # 새 글 채널 게시 (crawler/src/channels.py)
           GEMINI_API_KEY: !Ref GeminiApiKey         # 새 글 AI 요약 (crawler/src/summarize.py)
           GEMINI_MODEL: !Ref GeminiModel
       Events:

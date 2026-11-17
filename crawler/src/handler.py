@@ -5,7 +5,8 @@
   3. cap       새 글이 너무 많으면 최신 글부터 일부만 처리하고 나머지는 다음 실행으로 미룹니다.
   4. summarize 새 글의 본문을 가져와 AI로 요약합니다 (summarize.py).
   5. save      새 글을 DynamoDB(ITEMS_TABLE)에 저장하고, 중복 비교용 키를 SEEN_TABLE에 적습니다.
-  6. notify    새 글을 키워드 구독자에게 디스코드 DM으로 알립니다 (notify.py).
+  6. post      새 글을 디스코드 서버 채널에 요약과 함께 올립니다 (channels.py).
+  7. notify    새 글을 키워드 구독자에게 디스코드 DM으로 알립니다 (notify.py).
 
 로컬에서 `python src/handler.py`로 실행하면 저장하지 않고 새 글로 판단한 결과만 출력합니다.
 """
@@ -14,6 +15,7 @@ import os
 import re
 import time
 
+import channels
 import dedupe
 import notify
 import summarize
@@ -221,12 +223,18 @@ def lambda_handler(event, context):
         dedupe.record(seen_table, saved)
     except Exception as e:  # 키를 못 적어도 저장은 끝났으므로 계속 (다음에 사이트 간 중복을 못 잡을 수 있음)
         print(f"중복 비교용 키 기록 실패: {e}")
+    # 게시·알림이 실패해도 저장은 이미 끝났으므로 실행 자체는 성공으로 둡니다.
+    try:
+        posted = channels.post(saved)
+    except Exception as e:
+        print(f"채널 게시 실패: {e}")
+        posted = {"error": str(e)}
     try:
         notified = notify.notify(saved)
-    except Exception as e:  # 알림이 실패해도 저장은 이미 끝났으므로 실행 자체는 성공으로
+    except Exception as e:
         print(f"알림 실패: {e}")
         notified = {"error": str(e)}
-    return {"statusCode": 200, "body": json.dumps({**stats, "notify": notified}, ensure_ascii=False)}
+    return {"statusCode": 200, "body": json.dumps({**stats, "channels": posted, "notify": notified}, ensure_ascii=False)}
 
 
 if __name__ == "__main__":
