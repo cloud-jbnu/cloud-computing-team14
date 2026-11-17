@@ -13,9 +13,13 @@ import re
 
 import dedupe
 import notify
+from sources import dev_event, geeknews, github_trending
 
 # 수집기 등록 — 새 사이트를 만들면 여기에 추가
 SOURCES = [
+    github_trending,
+    geeknews,
+    dev_event,
 ]
 
 # docs/api.md의 Item 형식
