@@ -1,0 +1,74 @@
+{
+ "message": "포지션 리스트가 조회되었습니다.",
+ "status": 200,
+ "code": "P004",
+ "result": {
+  "totalCount": 60,
+  "page": 1,
+  "keyword": "",
+  "keywordType": "etc",
+  "positions": [
+   {
+    "id": 55592439,
+    "jobCategory": "기술지원,정보보안 담당자,개발 PM,서버/백엔드 개발자,프론트엔드 개발자,크로스플랫폼 앱개발자",
+    "title": "웹 개발자 신입 채용",
+    "companyName": "아이포트폴리오",
+    "techStacks": [
+     "GitHub Actions",
+     "Jenkins",
+     "Jest",
+     "Next.js",
+     "React",
+     "TypeScript",
+     "Webpack",
+     "AWS",
+     "Vite",
+     "Vercel"
+    ],
+    "newcomer": true,
+    "minCareer": 0,
+    "maxCareer": 0,
+    "locations": [
+     "서울 강서구"
+    ],
+    "alwaysOpen": false,
+    "closedAt": "2026-12-16T23:59:59"
+   },
+   {
+    "id": 55592219,
+    "jobCategory": "기술지원,빅데이터 엔지니어,devops/시스템 엔지니어",
+    "title": "SIL시뮬레이션엔지니어",
+    "companyName": "쿤텍",
+    "techStacks": [
+     "Git"
+    ],
+    "newcomer": true,
+    "minCareer": 0,
+    "maxCareer": 0,
+    "locations": [
+     "경기 성남시"
+    ],
+    "alwaysOpen": false,
+    "closedAt": "2026-12-16T23:59:59"
+   },
+   {
+    "id": 55592188,
+    "jobCategory": "기술지원,빅데이터 엔지니어,devops/시스템 엔지니어",
+    "title": "HIL시뮬레이션엔지니어",
+    "companyName": "쿤텍",
+    "techStacks": [
+     "Git"
+    ],
+    "newcomer": true,
+    "minCareer": 0,
+    "maxCareer": 0,
+    "locations": [
+     "경기 성남시"
+    ],
+    "alwaysOpen": true,
+    "closedAt": "2099-12-31T23:59:59"
+   }
+  ],
+  "emptyPosition": false
+ }
+}

@@ -80,3 +80,31 @@ def test_dev_event_id_is_stable(fixture_text):
     b = dev_event.parse(fixture_text("dev_event_list.md"), today="2026-11-18")
     assert [it["id"] for it in a] == [it["id"] for it in b]
     assert all(it["id"].startswith("devevent-") for it in a)
+
+
+# ── 점핏 ──────────────────────────────────────────────────────
+def test_jumpit(fixture_text):
+    import json
+    from sources import jumpit
+
+    items = jumpit.parse(json.loads(fixture_text("jumpit_list.json")), today=TODAY)
+    assert_valid(items)
+    web, sil, hil = items
+    assert web["id"] == "jumpit-55592439"
+    assert web["url"] == "https://jumpit.saramin.co.kr/position/55592439"
+    assert (web["category"], web["subtype"], web["source"]) == ("jobs", "신입", "아이포트폴리오")
+    assert web["title"] == "웹 개발자 신입 채용"
+    assert web["fields"] == ["backend", "frontend", "mobile", "security"]
+    assert web["deadline"] == "2026-12-16"
+    assert "React" in web["body"] and "서울 강서구" in web["body"]
+    assert sil["fields"] == ["cloud", "data"]
+    assert "deadline" not in hil                      # 상시 채용은 마감일 없음
+
+
+def test_jumpit_body(fixture_text):
+    import json
+    from sources import jumpit
+
+    body = jumpit.parse_body(json.loads(fixture_text("jumpit_detail.json")))
+    assert "[주요 업무]" in body and "[자격 요건]" in body
+    assert "휴가" not in body.split("[우대 사항]")[1]    # 복지 안내는 요약에 쓰지 않음
