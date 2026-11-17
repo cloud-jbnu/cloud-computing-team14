@@ -11,11 +11,9 @@ import os
 import re
 
 import notify
-from sources import example_univ
 
 # 수집기 등록 — 새 사이트를 만들면 여기에 추가
 SOURCES = [
-    example_univ,
 ]
 
 # docs/api.md의 Item 형식
