@@ -2,17 +2,21 @@
 
   1. collect   각 수집기(sources/*.py)의 fetch()를 돌려 Item 목록을 모읍니다.
   2. find_new  형식 검사 → 중복 제거(dedupe.py)를 거쳐 처음 보는 글만 남깁니다.
-  3. save      새 글을 DynamoDB(ITEMS_TABLE)에 저장하고, 중복 비교용 키를 SEEN_TABLE에 적습니다.
-  4. notify    새 글을 키워드 구독자에게 디스코드 DM으로 알립니다 (notify.py).
+  3. cap       새 글이 너무 많으면 최신 글부터 일부만 처리하고 나머지는 다음 실행으로 미룹니다.
+  4. summarize 새 글의 본문을 가져와 AI로 요약합니다 (summarize.py).
+  5. save      새 글을 DynamoDB(ITEMS_TABLE)에 저장하고, 중복 비교용 키를 SEEN_TABLE에 적습니다.
+  6. notify    새 글을 키워드 구독자에게 디스코드 DM으로 알립니다 (notify.py).
 
 로컬에서 `python src/handler.py`로 실행하면 저장하지 않고 새 글로 판단한 결과만 출력합니다.
 """
 import json
 import os
 import re
+import time
 
 import dedupe
 import notify
+import summarize
 from sources import dev_event, geeknews, github_trending, jumpit, univ_cbnu, univ_jbnu, univ_knu, univ_pnu
 
 # 수집기 등록 — 새 사이트를 만들면 여기에 추가.
@@ -28,6 +32,9 @@ SOURCES = [
     github_trending,
 ]
 
+MAX_NEW_PER_RUN = 30   # 한 번 실행에서 요약·저장할 새 글 수
+BODY_PAUSE = 0.5       # 본문 페이지 요청 사이에 쉬는 시간(초)
+
 # docs/api.md의 Item 형식
 CATEGORIES = {"univ", "contest", "jobs", "tech"}
 FIELDS = {"backend", "frontend", "ai", "data", "cloud", "network", "security", "mobile"}
@@ -39,9 +46,14 @@ def collect():
     items = []
     for source in SOURCES:
         try:
-            items.extend(source.fetch())
+            fetched = source.fetch()
         except Exception as e:  # 한 사이트가 실패해도 나머지는 계속
             print(f"[{source.__name__}] 수집 실패: {e}")
+            continue
+        for it in fetched:
+            if isinstance(it, dict):
+                it["_module"] = source  # 나중에 본문을 가져올 수집기 (저장되지 않음)
+        items.extend(fetched)
     return items
 
 
@@ -123,6 +135,56 @@ def find_new(raw_items, items_table=None, seen_table=None):
     return items, stats
 
 
+def cap(items, limit=None):
+    """한 번에 처리할 새 글 수를 제한합니다. (이번에 처리할 글, 다음으로 미룬 개수)
+
+    처음 배포했을 때처럼 새 글이 한꺼번에 많이 들어오면 본문 요청과 요약 호출이 몰리므로
+    최신 글부터 limit건만 처리합니다. 미룬 글은 저장하지 않으므로 다음 실행에서 다시 새 글로 잡힙니다.
+    """
+    limit = MAX_NEW_PER_RUN if limit is None else limit
+    ordered = sorted(items, key=lambda it: it["date"], reverse=True)  # 날짜가 같으면 수집한 순서 유지
+    return ordered[:limit], max(0, len(ordered) - limit)
+
+
+def load_bodies(items, raw_items, pause=BODY_PAUSE):
+    """요약에 쓸 본문을 모읍니다. {글 id: 본문}
+
+    목록에서 이미 얻은 내용(raw의 "body")에, 수집기에 fetch_body()가 있으면 본문 페이지 내용을 더합니다.
+    본문을 못 가져와도 제목만으로 요약할 수 있으므로 실패는 로그만 남깁니다.
+    """
+    raw_by_id = {}
+    for raw in raw_items:
+        if isinstance(raw, dict) and isinstance(raw.get("id"), str):
+            raw_by_id.setdefault(raw["id"].strip(), raw)
+
+    bodies = {}
+    for item in items:
+        raw = raw_by_id.get(item["id"], {})
+        parts = [raw["body"]] if isinstance(raw.get("body"), str) and raw["body"].strip() else []
+        fetch_body = getattr(raw.get("_module"), "fetch_body", None)
+        if fetch_body:
+            try:
+                detail = fetch_body(item)
+                if detail:
+                    parts.append(detail)
+            except Exception as e:
+                print(f"본문 가져오기 실패 [{item['id']}]: {e}")
+            time.sleep(pause)  # 같은 사이트에 연달아 요청하지 않게
+        bodies[item["id"]] = "\n\n".join(parts)
+    return bodies
+
+
+def add_summaries(items, raw_items):
+    """새 글에 AI 요약을 붙입니다. 실패하면 요약 없이 그대로 둡니다 (수집·저장은 계속)."""
+    try:
+        results = summarize.summarize(items, load_bodies(items, raw_items))
+        summarize.apply(items, results)
+        return len(results)
+    except Exception as e:
+        print(f"요약 실패: {e}")
+        return 0
+
+
 def save(items, table):
     """새 글을 저장하고 실제로 저장된 글 목록을 돌려줍니다.
 
@@ -147,7 +209,12 @@ def lambda_handler(event, context):
     items_table = db.Table(os.environ["ITEMS_TABLE"])
     seen_table = db.Table(os.environ["SEEN_TABLE"])
 
-    new_items, stats = find_new(collect(), items_table, seen_table)
+    raw_items = collect()
+    new_items, stats = find_new(raw_items, items_table, seen_table)
+    new_items, stats["deferred"] = cap(new_items)
+    if stats["deferred"]:
+        print(f"새 글이 많아 {len(new_items)}건만 처리하고 {stats['deferred']}건은 다음 실행으로 미룸")
+    stats["summarized"] = add_summaries(new_items, raw_items)
     saved = save(new_items, items_table)
     stats["saved"] = len(saved)
     try:
@@ -163,6 +230,17 @@ def lambda_handler(event, context):
 
 
 if __name__ == "__main__":
-    new_items, _ = find_new(collect())
+    # 로컬 확인용: 저장·알림 없이 결과만 출력합니다.
+    #   python src/handler.py        수집 → 중복 제거까지
+    #   python src/handler.py 5      최신 5건은 본문을 가져와 요약까지 (.env에 GEMINI_API_KEY 필요)
+    import sys
+
+    raw_items = collect()
+    new_items, _ = find_new(raw_items)
+    if len(sys.argv) > 1:
+        from dotenv import load_dotenv
+        load_dotenv()
+        new_items, _ = cap(new_items, int(sys.argv[1]))
+        add_summaries(new_items, raw_items)
     for it in new_items:
-        print(it)
+        print(json.dumps(it, ensure_ascii=False))
