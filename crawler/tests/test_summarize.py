@@ -133,14 +133,23 @@ def test_response_that_is_not_a_list():
     assert results == {}
 
 
-def test_apply_merges_fields_and_leaves_unsummarized_items():
+def test_fields_are_capped_in_model_order():
+    rows = [{"id": "jbnu-0", "summary": ["요약"], "fields": ["security", "security", "없는분야", "network", "backend", "cloud"]}]
+    results, _ = run(make(1), [FakeResponse(rows=rows)])
+    assert results["jbnu-0"]["fields"] == ["network", "security"]   # 앞의 2개를 고르고 정해진 순서로 정렬
+
+
+def test_apply_replaces_fields_and_leaves_unsummarized_items():
     items = [
-        {"id": "a-1", "fields": ["cloud"]},
+        {"id": "a-1", "fields": ["ai", "cloud"]},                  # 예: 점핏 직무 분류로 붙은 태그
         {"id": "a-2", "fields": ["cloud"]},
+        {"id": "a-3", "fields": ["backend"]},
     ]
-    summarize.apply(items, {"a-1": {"summary": ["요약"], "fields": ["ai", "cloud"]}})
-    assert items[0] == {"id": "a-1", "fields": ["ai", "cloud"], "summary": ["요약"]}
-    assert items[1] == {"id": "a-2", "fields": ["cloud"]}            # 요약 실패한 글은 그대로
+    summarize.apply(items, {"a-1": {"summary": ["요약"], "fields": ["cloud"]},
+                            "a-3": {"summary": [], "fields": []}})
+    assert items[0] == {"id": "a-1", "fields": ["cloud"], "summary": ["요약"]}   # AI가 뺀 태그는 빠짐
+    assert items[1] == {"id": "a-2", "fields": ["cloud"]}            # 요약 실패한 글은 수집기 태그 그대로
+    assert items[2] == {"id": "a-3", "fields": []}                   # AI가 해당 분야 없음으로 판단
 
 
 # ── 제목 되풀이 빼기 ──────────────────────────────────────────

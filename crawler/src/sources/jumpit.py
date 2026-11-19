@@ -12,6 +12,7 @@ PAGE_URL = "https://jumpit.saramin.co.kr/position/{id}"
 PAGES = 2  # 한 쪽에 16건. 한 시간마다 도므로 최신 32건이면 놓치지 않습니다.
 
 # 점핏 직무 이름에 이 글자가 들어 있으면 → 우리 분야
+# 회사가 직무를 여러 개 골라 둬서 부정확합니다. AI 요약에 성공하면 AI 태그로 바뀌고, 실패했을 때만 이 태그가 남습니다.
 FIELD_KEYWORDS = [
     ("백엔드", "backend"), ("풀스택", "backend"), ("풀스택", "frontend"), ("프론트엔드", "frontend"),
     ("인공지능", "ai"), ("머신러닝", "ai"), ("빅데이터", "data"), ("데이터", "data"),

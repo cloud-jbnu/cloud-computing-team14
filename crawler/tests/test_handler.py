@@ -157,7 +157,7 @@ def test_add_summaries_attaches_results(monkeypatch):
     monkeypatch.setattr(handler.summarize, "summarize", fake_summarize)
     assert handler.add_summaries(items, raws) == 1
     assert seen["bodies"] == {"a-1": "본문", "a-2": ""}
-    assert items[0]["summary"] == ["요약 한 줄"] and items[0]["fields"] == ["ai", "cloud"]
+    assert items[0]["summary"] == ["요약 한 줄"] and items[0]["fields"] == ["ai"]   # 수집기 태그 대신 AI 태그
     assert "summary" not in items[1]
 
 
