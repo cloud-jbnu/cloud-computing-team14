@@ -43,7 +43,7 @@ crawler/
 | `univ_knu` | 경북대 공지사항 | univ / 경북대 | `knu` |
 | `univ_pnu` | 부산대 공지사항 | univ / 부산대 | `pnu` |
 | `jumpit` | 점핏 신입 채용 | jobs / 신입·인턴 | `jumpit` |
-| `dev_event` | Dev-Event 저장소의 대회 | contest | `devevent` |
+| `dev_event` | Dev-Event 저장소의 대회 (마감 지난 대회 제외) | contest | `devevent` |
 | `geeknews` | GeekNews RSS | tech / 최신기술 | `geeknews` |
 | `github_trending` | GitHub Trending | tech / GitHub | `github` |
 

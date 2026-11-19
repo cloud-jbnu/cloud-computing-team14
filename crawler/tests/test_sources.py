@@ -75,6 +75,11 @@ def test_dev_event_fields(fixture_text):
     assert algo["deadline"] == "2027-01-08"           # 12월 목록의 "1. 08"은 내년
 
 
+def test_dev_event_skips_contests_past_deadline(fixture_text):
+    items = dev_event.parse(fixture_text("dev_event_list.md"), today="2026-11-21")
+    assert [it["deadline"] for it in items] == ["2026-11-21", "2027-01-08"]   # 11-20 마감은 빠지고 마감 당일은 남음
+
+
 def test_dev_event_id_is_stable(fixture_text):
     a = dev_event.parse(fixture_text("dev_event_list.md"), today="2026-11-17")
     b = dev_event.parse(fixture_text("dev_event_list.md"), today="2026-11-18")

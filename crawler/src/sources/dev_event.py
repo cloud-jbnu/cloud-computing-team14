@@ -9,6 +9,7 @@ README의 한 항목은 이렇게 생겼습니다.
       - 접수: 10. 12(월) ~ 11. 20(금) 17:00      (또는  - 일시: 11. 21(토) 13:00 ~ 11. 21(토) 18:00)
 
 세미나·모임은 빼고 분류에 `대회`가 있는 항목만 수집합니다.
+마감일(접수 마지막 날, 접수 기간이 없으면 행사 시작일)이 오늘보다 앞선 대회는 이미 지원할 수 없으므로 뺍니다.
 README에는 글 번호와 게시일이 없어서 id는 주소의 해시로, date는 처음 수집한 날로 넣습니다.
 """
 import re
@@ -80,6 +81,8 @@ def _build(entry, today):
         days = _dates(entry["일시"], entry["year"], entry["month"])
         if days:
             out["deadline"] = days[0]
+    if out.get("deadline", today) < today:  # 마감이 지남. 마감일 당일은 아직 지원할 수 있으므로 남김
+        return None
     return out
 
 
