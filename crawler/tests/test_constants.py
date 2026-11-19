@@ -42,8 +42,10 @@ def test_docs_use_same_lists():
 
 
 def test_api_accepts_same_categories():
-    allowed = re.search(r"category not in \{([^}]*)\}", read("api/src/items.py"))[1]
-    assert sorted(re.findall(r'"(\w+)"', allowed)) == sorted(CATEGORIES)
+    # CATEGORIES = ("univ", ...) 상수(fix/api-items-latest 이후) 또는 예전의 category not in {...} 줄
+    source = read("api/src/items.py")
+    allowed = re.search(r"^CATEGORIES\s*=\s*\(([^)]*)\)", source, re.M) or re.search(r"category not in \{([^}]*)\}", source)
+    assert sorted(re.findall(r'"(\w+)"', allowed[1])) == sorted(CATEGORIES)
 
 
 def test_category_settings_cover_every_category():
