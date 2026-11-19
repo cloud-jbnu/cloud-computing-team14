@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns='http://www.w3.org/2005/Atom'>
+<title>GeekNews - 개발/기술/스타트업 뉴스 서비스</title>
+<subtitle>개발 뉴스, 기술 관련 새소식, 스타트업 정보와 노하우, 세상의 재미난 것들을 좋아하는 사람들을 위한 뉴스 사이트. 이메일 뉴스레터/X(Twitter)/Slack용 봇으로 구독 가능</subtitle>
+<link rel='alternate' type='text/html' href='https://news.hada.io' />
+<link rel='self' type='application/atom+xml' href='https://news.hada.io/rss/news' />
+<id>https://news.hada.io/rss/news</id>
+<updated>2026-11-17T13:35:21+09:00</updated>
+<icon>https://social.news.hada.io/favicon.png</icon>
+<logo>https://social.news.hada.io/WideLogo500.png</logo>
+<category term='technology'/>
+<entry>
+  <title><![CDATA[화학은 사실 기하학이다]]></title>
+  <link rel='alternate' type='text/html' href='https://news.hada.io/topic?id=37336&amp;utm_source=geeknews&amp;utm_medium=rss&amp;utm_campaign=news' />
+  <id>https://news.hada.io/topic?id=37336</id>
+  <updated>2026-11-17T13:35:21+09:00</updated>
+  <published>2026-11-17T13:35:21+09:00</published>
+  <content type='html' xml:lang='ko'><![CDATA[<div><ul><li><strong>화학 반응 네트워크 이론</strong>은 추정하기 어려운 수많은 반응 속도 상수 대신 네트워크 구조와 기하학을 이용해 농도 변화와 평형의 성질을 판단함</li><li>화학종을 좌표축으로, 반응을 벡터로 표현하면 농도 궤적이 움직일 수 있는 <strong>화학양론적 적합류</strong>를 구할 수 있으며, 평형점은 이 영역과 평형점 집합의 교점에 놓임</li><li><strong>결핍도 0 정리</strong>는 복합체 수, 연결류 수, 반응 벡터 공간의 차원만으로 특정 조건에서 양의 평형점 존재 여부와 개수를 결정함</li><li>결핍도가 0이고 <strong>약가역적</strong>인 네트워크에 질량 작용 동역학을 적용하면 각 양의 화학양론적 적합류에 평</li></ul></div>…]]></content>
+</entry>
+<entry>
+  <title><![CDATA[OpenCode Browse - 코딩 에이전트가 사용자의 실제 브라우저를 쓰게 하는 도구]]></title>
+  <link rel='alternate' type='text/html' href='https://news.hada.io/topic?id=37333&amp;utm_source=geeknews&amp;utm_medium=rss&amp;utm_campaign=news' />
+  <id>https://news.hada.io/topic?id=37333</id>
+  <updated>2026-11-17T12:33:45+09:00</updated>
+  <published>2026-11-17T12:33:45+09:00</published>
+  <content type='html' xml:lang='ko'><![CDATA[<div><ul><li><strong>MCP 서버와 Chromium 확장 프로그램</strong>으로 에이전트가 사용자의 기존 탭, 로그인 상태, 확장 프로그램을 갖춘 실제 브라우저를 이용하게 함</li><li>에이전트는 <strong>페이지 읽기, 클릭, 입력</strong>을 수행하고 스크린샷, 탭 녹화, 네트워크 트래픽을 캡처할 수 있음</li><li><strong>로그인, 2FA, 결제</strong>처럼 사용자 작업이 필요한 단계에서는 탭을 사용자에게 넘기고, 사용자가 <code>Continue</code>를 클릭하면 작업을 이어감</li><li>에이전트 탭은 <strong>백그라운드의 접힌 그룹</strong>에 열리며, 사용자가 지정한 사이트 안에서만 머물도록 제한할 수 있음</li><li><strong>OpenCode, Claude Code, Cursor, Codex, Zed</strong> 등 MCP</li></ul></div>…]]></content>
+</entry>
+<entry>
+  <title><![CDATA[Squircles - 정사각형과 원 사이의 곡선, 구현 방식과 연속성 비교]]></title>
+  <link rel='alternate' type='text/html' href='https://news.hada.io/topic?id=37332&amp;utm_source=geeknews&amp;utm_medium=rss&amp;utm_campaign=news' />
+  <id>https://news.hada.io/topic?id=37332</id>
+  <updated>2026-11-17T11:33:51+09:00</updated>
+  <published>2026-11-17T11:33:51+09:00</published>
+  <content type='html' xml:lang='ko'><![CDATA[<div><ul><li><strong>스쿼클(squircle)</strong> 은 정사각형과 원 사이의 형태로, 하나의 수학적 정의가 아니라 여러 곡선으로 구현할 수 있으며 매개변수에 따라 원과 정사각형 사이에서 달라짐</li><li><strong>슈퍼타원(superellipse)</strong> 은 대표적인 스쿼클로, 지수에 따라 형태가 바뀌며 서로 다른 변형은 단위 반지름에서 사분면 중점의 좌표인 <strong>게이지(gauge)</strong> 로 비교할 수 있음</li><li><strong>Apple과 Figma의 스쿼클</strong>은 단순한 슈퍼타원과 달리 평평한 변과 모서리를 결합하며, Figma의 근사에는 원호와 연결되는 지점의 곡률 불연속이 남아 있음</li><li>시각적으로 매끄러운 형태에는 <strong>G2 연속성</strong>이 필요</li></ul></div>…]]></content>
+</entry>
+</feed>

@@ -8,7 +8,7 @@ crawler, web, bot이 모두 이 형식을 기준으로 맞춥니다. 바꿀 때�
 |---|---|---|---|
 | `id` | string | ✓ | 출처별로 고유한 값 (예: `kaist-cs-20261110-012`) |
 | `category` | string | ✓ | `univ` · `contest` · `jobs` · `tech` |
-| `subtype` | string | ✓ | 학교명 / 대회 종류(해커톤·공모전·경진대회·CTF) / 채용 형태(인턴·신입·채용연계) / `GitHub`·`최신기술`·`이슈` |
+| `subtype` | string | ✓ | 학교명(전북대·충북대·경북대·부산대) / 대회 종류(해커톤·공모전·경진대회·CTF) / 채용 형태(인턴·신입·채용연계) / `GitHub`·`최신기술`·`이슈` |
 | `source` | string | ✓ | 출처 이름 (학과, 주최, 회사 등) |
 | `title` | string | ✓ | 제목 |
 | `fields` | string[] | ✓ | `backend` `frontend` `ai` `data` `cloud` `network` `security` `mobile` 중 0개 이상 |
@@ -16,7 +16,9 @@ crawler, web, bot이 모두 이 형식을 기준으로 맞춥니다. 바꿀 때�
 | `deadline` | string | | 마감일 `YYYY-MM-DD` |
 | `url` | string | ✓ | 원문 주소 |
 | `repo` | object | | GitHub 항목만. `{ "lang": "Go", "starsToday": 412 }` |
-| `summary` | string[] | | (나중에) AI 요약 |
+| `summary` | string[] | | AI 요약 1~3줄 (한 줄 120자 이내). 크롤러가 새 글을 저장할 때 한 번 만들어 붙입니다. 요약에 실패했거나 요약 기능이 꺼져 있으면 이 필드가 없으니, 없을 때도 화면이 깨지지 않게 해 주세요 |
+
+`id`는 `<사이트>-<글 번호>` 모양입니다 (`jbnu-219859`, `jumpit-55592439`, `github-owner.repo`). 앞부분(`jbnu`)은 크롤러가 중복 제거에 쓰므로 수집기를 만들 때 사이트마다 다른 값을 써야 합니다.
 
 ## GET /items
 
