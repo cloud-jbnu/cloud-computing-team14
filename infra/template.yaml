@@ -8,7 +8,11 @@ Parameters:
   CrawlSchedule:
     Type: String
     Default: rate(1 hour)
-    Description: 크롤러 실행 주기 (예 rate(30 minutes), cron(0 * * * ? *))
+    # 학교 게시판은 첫 쪽(10~20건)만 읽습니다. 바쁜 날은 하루 8건 넘게 올라와서 주기가 길면 글을 놓칩니다.
+    # 30분보다 짧으면 사이트에 요청이 너무 잦아집니다. 범위를 넓히려면 수집기가 여러 쪽을 읽게 먼저 고쳐야 합니다.
+    AllowedPattern: "^rate\\((([3-9][0-9]|1[0-7][0-9]|180) minutes|1 hour|[23] hours)\\)$"
+    ConstraintDescription: "rate(30 minutes) ~ rate(3 hours) 사이로 정해 주세요 (예: rate(30 minutes), rate(1 hour), rate(2 hours))"
+    Description: 크롤러 실행 주기. 30분~3시간 (예 rate(30 minutes), rate(1 hour))
   DiscordClientId:
     Type: String
     Description: 디스코드 개발자 포털 → OAuth2의 Client ID

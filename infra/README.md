@@ -8,7 +8,7 @@ AWS 리소스는 전부 [`template.yaml`](template.yaml)(AWS SAM) 하나로 관�
 | 리소스 | 이름(스택 `csradar` 기준) | 용도 |
 |---|---|---|
 | Lambda | `csradar-crawler` | `crawler/src/handler.py` 실행 |
-| EventBridge 규칙 | (자동) | 크롤러 주기 실행, 기본 `rate(1 hour)` |
+| EventBridge 규칙 | (자동) | 크롤러 주기 실행, 기본 `rate(1 hour)` (30분~3시간만 허용) |
 | Lambda + HTTP API | `csradar-items-api` | 웹이 쓰는 `GET /items` |
 | DynamoDB | `csradar-ItemsTable-…` | 수집한 글. PK `id`, GSI `category-date-index` |
 | DynamoDB | `csradar-SubscriptionsTable-…` | 구독. PK `userId` + SK `keyword`, GSI `keyword-index` |
@@ -65,6 +65,7 @@ sam deploy --parameter-overrides DiscordClientId=<Client ID> DiscordClientSecret
 - `DiscordGuildId`는 새 글을 올릴 디스코드 서버 ID입니다. 빼면 채널 게시만 꺼집니다. 채널·역할 준비는 [bot/README.md](../bot/README.md) 참고.
 - `GeminiApiKey`([Google AI Studio](https://aistudio.google.com)에서 발급)는 새 글 AI 요약용입니다. 빼면 요약 없이 저장합니다. 모델을 바꾸려면 `GeminiModel=<모델 이름>`도 넘깁니다 (기본 `gemini-flash-lite-latest`).
 - 토큰과 키는 다음 배포 때 다시 넘기지 않으면 SAM이 이전 값을 기억하지 못하고 빈 값이 되니 매번 같이 넘겨 주세요.
+- 크롤러 주기는 `CrawlSchedule=rate(30 minutes)`처럼 바꿀 수 있지만 **30분~3시간**만 받습니다. 학교 게시판은 첫 쪽(10~20건)만 읽는데 바쁜 날은 하루 8건 넘게 올라와서, 주기가 길면 글을 놓칩니다. 더 길게 하려면 학교 수집기가 여러 쪽을 읽도록 먼저 고쳐야 합니다.
 - 웹을 `http://localhost:8765`가 아닌 주소에서 열 거라면 `WebOrigin=https://내-주소`도 같이 넘깁니다 (끝에 `/` 없이). 로그인 후 돌아올 주소로 등록됩니다.
 - 바뀌는 리소스 목록이 나오면 확인하고 `y`.
 - 끝나면 **Outputs** 값을 `web/js/api.js` 맨 위에 넣습니다.

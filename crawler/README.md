@@ -42,7 +42,7 @@ crawler/
 | `univ_cbnu` | 충북대 공지사항 | univ / 충북대 | `cbnu` |
 | `univ_knu` | 경북대 공지사항 | univ / 경북대 | `knu` |
 | `univ_pnu` | 부산대 공지사항 | univ / 부산대 | `pnu` |
-| `jumpit` | 점핏 신입 채용 | jobs / 신입·인턴 | `jumpit` |
+| `jumpit` | 점핏 신입 채용 (전체 쪽) | jobs / 신입·인턴 | `jumpit` |
 | `dev_event` | Dev-Event 저장소의 대회 (마감 지난 대회 제외) | contest | `devevent` |
 | `geeknews` | GeekNews RSS | tech / 최신기술 | `geeknews` |
 | `github_trending` | GitHub Trending | tech / GitHub | `github` |
@@ -94,6 +94,7 @@ crawler/
    - 목록에서 본문까지 얻을 수 있으면 Item에 `"body"`로 넣습니다 (요약에만 쓰고 저장하지 않음).
    - 본문 페이지를 따로 읽어야 하면 `fetch_body(item)`을 만듭니다. 새 글에만 호출됩니다.
    - 분야 태그(`fields`)를 붙인다면 [`src/common/item.py`](src/common/item.py)의 `FIELDS`에 있는 값만 씁니다.
+   - 첫 쪽만 읽는다면, 바쁜 날 실행 주기(최대 3시간) 동안 올라오는 글이 첫 쪽에 다 들어가는지 확인합니다. 모자라면 여러 쪽을 읽게 합니다 (`jumpit.py` 참고).
 3. 실제 응답에서 필요한 부분만 잘라 `tests/fixtures/`에 넣고 파서 테스트를 씁니다.
 4. `handler.py`의 `SOURCES`에 등록합니다.
 

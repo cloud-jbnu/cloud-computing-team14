@@ -106,6 +106,39 @@ def test_jumpit(fixture_text):
     assert "deadline" not in hil                      # 상시 채용은 마감일 없음
 
 
+def jumpit_pages(monkeypatch, fixture_text, sizes):
+    """쪽마다 sizes[i]건이 오는 가짜 목록 API. 요청한 쪽 번호 목록을 돌려줍니다."""
+    import json
+    from sources import jumpit
+
+    sample = json.loads(fixture_text("jumpit_list.json"))["result"]["positions"][0]
+    asked = []
+
+    def fake_get_json(url, params=None):
+        asked.append(params["page"])
+        size = sizes[params["page"] - 1] if params["page"] <= len(sizes) else 0
+        return {"result": {"positions": [{**sample, "id": params["page"] * 100 + i} for i in range(size)]}}
+
+    monkeypatch.setattr(jumpit.http, "get_json", fake_get_json)
+    return jumpit, asked
+
+
+def test_jumpit_reads_until_short_page(monkeypatch, fixture_text):
+    jumpit, asked = jumpit_pages(monkeypatch, fixture_text, [3, 3, 1, 3])
+    assert len(jumpit.fetch()) == 7 and asked == [1, 2, 3]       # 덜 찬 3쪽이 마지막
+
+
+def test_jumpit_reads_until_empty_page(monkeypatch, fixture_text):
+    jumpit, asked = jumpit_pages(monkeypatch, fixture_text, [3, 3])
+    assert len(jumpit.fetch()) == 6 and asked == [1, 2, 3]       # 빈 3쪽에서 멈춤
+
+
+def test_jumpit_page_limit(monkeypatch, fixture_text):
+    jumpit, asked = jumpit_pages(monkeypatch, fixture_text, [3] * 50)
+    jumpit.fetch()
+    assert len(asked) == jumpit.MAX_PAGES
+
+
 def test_jumpit_body(fixture_text):
     import json
     from sources import jumpit

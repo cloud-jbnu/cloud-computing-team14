@@ -9,7 +9,9 @@ from common import http, item
 LIST_URL = "https://jumpit-api.saramin.co.kr/api/positions"
 DETAIL_URL = "https://jumpit-api.saramin.co.kr/api/position/{id}"
 PAGE_URL = "https://jumpit.saramin.co.kr/position/{id}"
-PAGES = 2  # 한 쪽에 16건. 한 시간마다 도므로 최신 32건이면 놓치지 않습니다.
+# 신입 공고 전체를 끝까지 읽습니다 (2026-11-19 기준 전부 58건, 16건씩 4쪽).
+# 최신 몇 쪽만 읽으면 실행 주기를 늘렸을 때 그 사이 공고를 놓칩니다. 이미 저장한 공고는 중복 제거에서 빠집니다.
+MAX_PAGES = 10  # 응답이 이상해서 끝나지 않을 때를 대비한 상한
 
 # 점핏 직무 이름에 이 글자가 들어 있으면 → 우리 분야
 # 회사가 직무를 여러 개 골라 둬서 부정확합니다. AI 요약에 성공하면 AI 태그로 바뀌고, 실패했을 때만 이 태그가 남습니다.
@@ -63,10 +65,14 @@ def parse_body(data):
 
 
 def fetch():
-    items = []
-    for page in range(1, PAGES + 1):
+    items, page_size = [], None
+    for page in range(1, MAX_PAGES + 1):
         data = http.get_json(LIST_URL, params={"sort": "reg_dt", "highlight": "false", "career": 0, "page": page})
-        items.extend(parse(data))
+        found = parse(data)
+        items.extend(found)
+        page_size = page_size or len(found)
+        if not found or len(found) < page_size:  # 빈 쪽이나 덜 찬 쪽이면 마지막 쪽
+            break
     return items
 
 
