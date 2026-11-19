@@ -2,7 +2,8 @@
 
   1. collect   각 수집기(sources/*.py)의 fetch()를 돌려 Item 목록을 모읍니다.
   2. find_new  형식 검사 → 중복 제거(dedupe.py)를 거쳐 처음 보는 글만 남깁니다.
-  3. cap       새 글이 너무 많으면 최신 글부터 일부만 처리하고 나머지는 다음 실행으로 미룹니다.
+     backlog   처음 수집하는 사이트의 밀린 글을 골라 둡니다. 저장은 하되 6·7번에서 뺍니다 (backlog.py).
+  3. cap      새 글이 너무 많으면 최신 글부터 일부만 처리하고 나머지는 다음 실행으로 미룹니다.
   4. summarize 새 글의 본문을 가져와 AI로 요약합니다 (summarize.py).
   5. save      새 글을 DynamoDB(ITEMS_TABLE)에 저장하고, 중복 비교용 키를 SEEN_TABLE에 적습니다.
   6. post      새 글을 디스코드 서버 채널에 요약과 함께 올립니다 (channels.py).
@@ -15,6 +16,7 @@ import os
 import re
 import time
 
+import backlog
 import channels
 import dedupe
 import notify
@@ -204,6 +206,23 @@ def save(items, table):
     return saved
 
 
+def find_quiet(new_items, seen_table):
+    """게시·알림하지 않을 글의 id 집합 (backlog.py). 확인에 실패하면 이번 실행은 아무것도 알리지 않습니다.
+
+    밀린 글을 알리지 못하는 것보다 수십 건을 한꺼번에 잘못 알리는 쪽이 더 나쁘기 때문입니다.
+    """
+    try:
+        return backlog.quiet_ids(seen_table, new_items)
+    except Exception as e:
+        print(f"밀린 글 확인 실패, 이번 실행은 저장만 함: {e}")
+        return {it["id"] for it in new_items}
+
+
+def to_announce(saved, quiet):
+    """저장한 글 중 채널 게시·DM 알림을 보낼 글."""
+    return [it for it in saved if it["id"] not in quiet]
+
+
 def lambda_handler(event, context):
     import boto3  # Lambda에만 필요하므로 로컬 실행 때는 불러오지 않음
     db = boto3.resource("dynamodb")
@@ -212,6 +231,7 @@ def lambda_handler(event, context):
 
     raw_items = collect()
     new_items, stats = find_new(raw_items, items_table, seen_table)
+    quiet = find_quiet(new_items, seen_table)   # 상한으로 미룰 글까지 적어야 하므로 cap보다 먼저
     new_items, stats["deferred"] = cap(new_items)
     if stats["deferred"]:
         print(f"새 글이 많아 {len(new_items)}건만 처리하고 {stats['deferred']}건은 다음 실행으로 미룸")
@@ -222,14 +242,18 @@ def lambda_handler(event, context):
         dedupe.record(seen_table, saved)
     except Exception as e:  # 키를 못 적어도 저장은 끝났으므로 계속 (다음에 사이트 간 중복을 못 잡을 수 있음)
         print(f"중복 비교용 키 기록 실패: {e}")
+    announce = to_announce(saved, quiet)
+    stats["quiet"] = len(saved) - len(announce)
+    if stats["quiet"]:
+        print(f"밀린 글 {stats['quiet']}건은 저장만 하고 게시·알림하지 않음")
     # 게시·알림이 실패해도 저장은 이미 끝났으므로 실행 자체는 성공으로 둡니다.
     try:
-        posted = channels.post(saved)
+        posted = channels.post(announce)
     except Exception as e:
         print(f"채널 게시 실패: {e}")
         posted = {"error": str(e)}
     try:
-        notified = notify.notify(saved)
+        notified = notify.notify(announce)
     except Exception as e:
         print(f"알림 실패: {e}")
         notified = {"error": str(e)}

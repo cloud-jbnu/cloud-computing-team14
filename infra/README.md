@@ -12,7 +12,7 @@ AWS 리소스는 전부 [`template.yaml`](template.yaml)(AWS SAM) 하나로 관�
 | Lambda + HTTP API | `csradar-items-api` | 웹이 쓰는 `GET /items` |
 | DynamoDB | `csradar-ItemsTable-…` | 수집한 글. PK `id`, GSI `category-date-index` |
 | DynamoDB | `csradar-SubscriptionsTable-…` | 구독. PK `userId` + SK `keyword`, GSI `keyword-index` |
-| DynamoDB | `csradar-SeenTable-…` | 사이트 간 중복 비교용 키. PK `seenKey`, 60일 뒤 자동 삭제(TTL `expiresAt`) |
+| DynamoDB | `csradar-SeenTable-…` | 사이트 간 중복 비교용 키(60일 뒤 자동 삭제, TTL `expiresAt`)와 사이트별 밀린 글 목록(`source#사이트`, 만료 없음). PK `seenKey` |
 | S3 | `csradar-rawbucket-…` | 원문 HTML 백업 (비공개) |
 | Cognito User Pool | `csradar-users` | 로그인. 디스코드(OIDC) 로그인만 허용 |
 | Cognito 도메인 | `csradar-<계정ID>.auth.us-east-1.amazoncognito.com` | 로그인 주소 |
@@ -87,17 +87,24 @@ aws lambda invoke --function-name csradar-crawler out.json
 curl "<ApiUrl>/items"
 ```
 
-크롤러 로그는 CloudWatch → Log groups → `/aws/lambda/csradar-crawler`. 정상이면 이런 줄이 남습니다.
+크롤러 로그는 CloudWatch → Log groups → `/aws/lambda/csradar-crawler`. 처음 배포한 뒤 첫 실행이면 이런 줄이 남습니다.
 
 ```
-수집 134건 → 형식 오류 0, 실행 내 중복 2, 이미 있음 0, 사이트 간 중복 0, 새 글 132
-새 글이 많아 30건만 처리하고 102건은 다음 실행으로 미룸
-요약: 30건 중 30건 완료 (요청 3번)
+수집 163건 → 형식 오류 0, 실행 내 중복 2, 이미 있음 0, 사이트 간 중복 0, 새 글 161
+[jbnu] 처음 수집하는 사이트: 지금 있는 글 12건은 저장만 하고 알리지 않음
+[jumpit] 처음 수집하는 사이트: 지금 있는 글 58건은 저장만 하고 알리지 않음
+… (사이트마다 한 줄)
+새 글이 많아 30건만 처리하고 131건은 다음 실행으로 미룸
+요약: 30건 중 30건 완료, 제목 되풀이라 뺀 글 0건 (요청 3번)
 저장 30건
-채널 게시: 24건 (메시지 7개), 채널 없음 0, 실패 0
+밀린 글 30건은 저장만 하고 게시·알림하지 않음
 ```
 
-처음 배포하면 쌓여 있던 글이 한 번에 30건씩 들어오므로, 몇 번 실행해야 전부 저장됩니다. 바로 한 번 더 실행했을 때 같은 글이 다시 저장되거나 채널에 또 올라오지 않으면 중복 제거가 동작하는 것입니다.
+- 처음 배포하면 사이트 목록에 이미 있던 글이 한 번에 30건씩 들어오므로, 다 저장될 때까지 5~6번 실행됩니다 (기본 주기면 5~6시간).
+- 이렇게 **밀린 글은 저장과 요약만 하고 채널 게시와 키워드 DM은 보내지 않습니다.** 게시일이 없는 사이트(점핏 등)는 몇 주 된 글도 수집한 날짜가 되어, 그대로 알리면 오래된 글이 한꺼번에 쏟아지기 때문입니다. 배포한 뒤 새로 올라온 글은 처음부터 평소처럼 알립니다.
+- 나중에 새 사이트를 붙여도 그 사이트의 밀린 글은 같은 방식으로 조용히 저장됩니다.
+- 바로 한 번 더 실행했을 때 같은 글이 다시 저장되거나 채널에 또 올라오지 않으면 중복 제거가 동작하는 것입니다.
+- 채널 게시를 테스트하려고 밀린 글도 다시 알리고 싶다면, ItemsTable에서 해당 글과 SeenTable의 `source#사이트` 항목을 지우고 다시 실행합니다.
 
 로그인 확인: 웹(`http://localhost:8765`)에서 **로그인** → 디스코드 승인 → 오른쪽 "키워드 알림"에 키워드를 추가해 봅니다.
 토큰 없이 부르면 401이 나와야 합니다.

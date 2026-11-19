@@ -83,7 +83,7 @@ def in_run(items):
 
 
 # ── 2. 이미 저장한 글 ──────────────────────────────────────────
-def _batch_get(table, key_name, values, attributes):
+def batch_get(table, key_name, values, attributes):
     """키 여러 개를 한꺼번에 조회합니다. 없는 키는 결과에 없습니다."""
     names = {f"#a{i}": name for i, name in enumerate(attributes)}
     client, rows = table.meta.client, []
@@ -108,7 +108,7 @@ def _batch_get(table, key_name, values, attributes):
 
 def existing_ids(table, items):
     """items 중 ITEMS_TABLE에 이미 있는 id 집합."""
-    rows = _batch_get(table, "id", [it["id"] for it in items], ["id"])
+    rows = batch_get(table, "id", [it["id"] for it in items], ["id"])
     return {row["id"] for row in rows}
 
 
@@ -122,7 +122,7 @@ def cross_site(items, seen_table=None):
     owner = {}  # 키 → 그 글을 먼저 올린 사이트
     if seen_table is not None and items:
         all_keys = [k for keys in keys_of.values() for k in keys]
-        for row in _batch_get(seen_table, "seenKey", all_keys, ["seenKey", "site"]):
+        for row in batch_get(seen_table, "seenKey", all_keys, ["seenKey", "site"]):
             owner[row["seenKey"]] = row["site"]
 
     kept = []
