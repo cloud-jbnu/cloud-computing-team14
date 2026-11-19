@@ -9,6 +9,12 @@ from datetime import date, datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))
 
+# Item의 category와 fields에 쓸 수 있는 값. 크롤러 안에서는 여기만 고칩니다.
+# 웹(web/js/data.js), API(api/src/items.py), 문서(docs/api.md)에도 같은 목록이 있어 함께 고쳐야 하며,
+# 어긋나면 tests/test_constants.py가 실패합니다.
+CATEGORIES = ["univ", "contest", "jobs", "tech"]
+FIELDS = ["backend", "frontend", "ai", "data", "cloud", "network", "security", "mobile"]
+
 
 def today():
     return datetime.now(KST).date()

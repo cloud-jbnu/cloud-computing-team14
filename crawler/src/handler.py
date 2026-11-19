@@ -19,6 +19,7 @@ import channels
 import dedupe
 import notify
 import summarize
+from common.item import CATEGORIES, FIELDS
 from sources import dev_event, geeknews, github_trending, jumpit, univ_cbnu, univ_jbnu, univ_knu, univ_pnu
 
 # 수집기 등록 — 새 사이트를 만들면 여기에 추가.
@@ -37,9 +38,7 @@ SOURCES = [
 MAX_NEW_PER_RUN = 30   # 한 번 실행에서 요약·저장할 새 글 수
 BODY_PAUSE = 0.5       # 본문 페이지 요청 사이에 쉬는 시간(초)
 
-# docs/api.md의 Item 형식
-CATEGORIES = {"univ", "contest", "jobs", "tech"}
-FIELDS = {"backend", "frontend", "ai", "data", "cloud", "network", "security", "mobile"}
+# docs/api.md의 Item 형식 (category·fields 값은 common/item.py)
 REQUIRED_TEXT = ("id", "subtype", "source", "title", "url")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 

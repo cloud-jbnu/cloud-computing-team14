@@ -93,8 +93,11 @@ crawler/
    - `id`는 `item.make_id("사이트이름", 글번호)`로 만듭니다. 앞부분은 다른 수집기와 겹치면 안 됩니다.
    - 목록에서 본문까지 얻을 수 있으면 Item에 `"body"`로 넣습니다 (요약에만 쓰고 저장하지 않음).
    - 본문 페이지를 따로 읽어야 하면 `fetch_body(item)`을 만듭니다. 새 글에만 호출됩니다.
+   - 분야 태그(`fields`)를 붙인다면 [`src/common/item.py`](src/common/item.py)의 `FIELDS`에 있는 값만 씁니다.
 3. 실제 응답에서 필요한 부분만 잘라 `tests/fixtures/`에 넣고 파서 테스트를 씁니다.
 4. `handler.py`의 `SOURCES`에 등록합니다.
+
+분야나 카테고리를 추가·변경할 때는 `src/common/item.py`와 함께 `web/js/data.js`, `api/src/items.py`, `docs/api.md`, 요약 프롬프트(`src/summarize.py`)의 기준도 고칩니다. 하나라도 빠지면 `tests/test_constants.py`가 실패합니다.
 
 ## 로컬 실행
 

@@ -18,9 +18,10 @@ import os
 import re
 import time
 
+from common.item import FIELDS
+
 API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 DEFAULT_MODEL = "gemini-flash-lite-latest"
-FIELDS = ["backend", "frontend", "ai", "data", "cloud", "network", "security", "mobile"]
 
 BATCH_SIZE = 10          # 한 번의 요청에 묶는 글 수
 BATCH_PAUSE = 4          # 요청 사이에 쉬는 시간(초) — 무료 한도(분당 요청 수)를 넘지 않게
