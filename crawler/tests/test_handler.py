@@ -24,9 +24,12 @@ def test_validate_drops_bad_items():
         raw("a-4", title=" "),
         "딕셔너리 아님",
         raw("a-5", repo={"lang": "Go", "starsToday": "많음"}),
+        raw("a-6", url="javascript:alert(1)"),
+        raw("a-7", url=" JavaScript:alert(1)"),
+        raw("a-8", url="/relative/path"),
     ])
     assert [it["id"] for it in items] == ["a-1"]
-    assert invalid == 5
+    assert invalid == 8
     assert items[0]["fields"] == ["ai"]   # 정해진 값이 아닌 분야는 뺌
 
 

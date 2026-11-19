@@ -70,6 +70,10 @@ def clean(item):
         if not isinstance(value, str) or not value.strip():
             return None, f"{key} 없음"
         out[key] = value.strip()
+    # 웹은 이 주소를 링크로 걸고 디스코드는 http(s)가 아니면 메시지를 거부합니다.
+    # Dev-Event처럼 남이 고칠 수 있는 목록에서 온 javascript: 같은 주소를 막습니다.
+    if not out["url"].lower().startswith(("https://", "http://")):
+        return None, f"url이 http(s) 주소가 아님: {out['url']!r:.80}"
 
     if item.get("category") not in CATEGORIES:
         return None, f"category가 잘못됨: {item.get('category')!r}"
