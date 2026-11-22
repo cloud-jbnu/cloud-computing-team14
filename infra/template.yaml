@@ -33,11 +33,11 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ""
-    Description: Google AI Studio에서 발급한 Gemini API 키. 새 글 AI 요약에 씁니다 (비워 두면 요약 꺼짐, 파일에 적지 않습니다)
+    Description: Google AI Studio에서 발급한 Gemini API 키. 새 글 AI 요약과 챗봇에 씁니다 (비워 두면 둘 다 꺼짐, 파일에 적지 않습니다)
   GeminiModel:
     Type: String
     Default: gemini-flash-lite-latest
-    Description: 요약에 쓸 Gemini 모델 이름
+    Description: 요약과 챗봇에 쓸 Gemini 모델 이름
   WebOrigin:
     Type: String
     Default: http://localhost:8765
@@ -58,7 +58,7 @@ Globals:
   HttpApi:
     CorsConfiguration:
       AllowOrigins: ["*"]
-      AllowMethods: [GET, PUT, DELETE, OPTIONS]
+      AllowMethods: [GET, POST, PUT, DELETE, OPTIONS]
       AllowHeaders: [Content-Type, Authorization]
     Auth:
       Authorizers:
@@ -114,6 +114,18 @@ Resources:
       KeySchema:
         - { AttributeName: seenKey, KeyType: HASH }
       TimeToLiveSpecification:                 # expiresAt(초 단위 시각)이 지난 키는 DynamoDB가 지웁니다
+        AttributeName: expiresAt
+        Enabled: true
+
+  ChatUsageTable:
+    Type: AWS::DynamoDB::Table                 # 챗봇 하루 질문 수 (api/src/chat.py). 키: "<사용자 sub>#<날짜>"
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: userDay, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userDay, KeyType: HASH }
+      TimeToLiveSpecification:
         AttributeName: expiresAt
         Enabled: true
 
@@ -256,6 +268,28 @@ Resources:
             Method: DELETE
             Auth: { Authorizer: CognitoAuth }
 
+  # ── 챗봇: POST /chat (로그인 필요) ─────────────────────
+  ChatApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-chat-api"
+      CodeUri: ../api/src
+      Handler: chat.lambda_handler
+      Timeout: 29                              # HTTP API가 30초에 끊으므로 그보다 짧게
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Environment:
+        Variables:
+          CHAT_USAGE_TABLE: !Ref ChatUsageTable
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+      Events:
+        Chat:
+          Type: HttpApi
+          Properties:
+            Path: /chat
+            Method: POST
+            Auth: { Authorizer: CognitoAuth }
+
 Outputs:
   ApiUrl:
     Description: web/js/api.js의 API_BASE에 넣을 주소
@@ -275,5 +309,7 @@ Outputs:
     Value: !Ref SubscriptionsTable
   SeenTableName:
     Value: !Ref SeenTable
+  ChatUsageTableName:
+    Value: !Ref ChatUsageTable
   RawBucketName:
     Value: !Ref RawBucket
