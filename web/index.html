@@ -91,9 +91,27 @@
   <!-- 로그인 · 회원가입 창 (app.js가 내용을 채움) -->
   <dialog class="auth-dialog" id="authDialog" aria-labelledby="authTitle"></dialog>
 
+  <!-- 챗봇 (chat.js가 내용을 채움) -->
+  <button class="chat-fab" type="button" id="chatFab" aria-label="AI에게 물어보기" aria-expanded="false" aria-controls="chatPanel">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z"/></svg>
+    <span>AI에게 물어보기</span>
+  </button>
+  <section class="chat-panel" id="chatPanel" aria-labelledby="chatTitle" hidden>
+    <header class="chat-head">
+      <div>
+        <h2 id="chatTitle">컴공레이더 AI</h2>
+        <p class="chat-sub">모아 둔 공지·대회·채용·테크 글에서 찾아 드려요</p>
+      </div>
+      <button type="button" class="chat-close" id="chatClose" aria-label="챗봇 닫기">×</button>
+    </header>
+    <div class="chat-log" id="chatLog" aria-live="polite"></div>
+    <div class="chat-foot" id="chatFoot"></div>
+  </section>
+
   <script src="js/data.js"></script>
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/chat.js"></script>
 </body>
 </html>
