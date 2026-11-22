@@ -2,6 +2,9 @@
 
 응답 형식은 docs/api.md 참고: {"items": [Item, ...]}
 쿼리: ?category=univ|contest|jobs|tech (없으면 전체)
+
+전체 목록도 카테고리마다 최신 LIMIT건씩 가져와 합칩니다. 전체에서 최신 LIMIT건만 자르면
+글이 많이 올라오는 카테고리(테크 트렌드)에 밀려, 마감이 몇 주 남은 채용·대회 글도 며칠 만에 목록에서 사라집니다.
 """
 import json
 import os
@@ -11,7 +14,8 @@ import boto3
 from boto3.dynamodb.conditions import Key
 
 TABLE = boto3.resource("dynamodb").Table(os.environ["ITEMS_TABLE"])
-LIMIT = 200
+CATEGORIES = ("univ", "contest", "jobs", "tech")
+LIMIT = 200  # 카테고리마다 돌려줄 최신 글 수 (전체 목록은 최대 LIMIT × 4건)
 
 
 def _json_default(o):
@@ -28,32 +32,28 @@ def _response(status, body):
     }
 
 
-def list_items(category=None):
-    if category:
-        res = TABLE.query(
-            IndexName="category-date-index",
-            KeyConditionExpression=Key("category").eq(category),
-            ScanIndexForward=False,  # 최신순
-            Limit=LIMIT,
-        )
-        return res["Items"]
+def latest_in(category):
+    """한 카테고리의 최신 LIMIT건."""
+    res = TABLE.query(
+        IndexName="category-date-index",
+        KeyConditionExpression=Key("category").eq(category),
+        ScanIndexForward=False,  # 최신순
+        Limit=LIMIT,
+    )
+    return res["Items"]
 
-    # 전체 목록: 데이터가 적을 동안은 scan으로 충분
-    items, kwargs = [], {}
-    while len(items) < LIMIT:
-        res = TABLE.scan(**kwargs)
-        items.extend(res["Items"])
-        if "LastEvaluatedKey" not in res:
-            break
-        kwargs["ExclusiveStartKey"] = res["LastEvaluatedKey"]
+
+def list_items(category=None):
+    """category를 주면 그 카테고리만, 없으면 모든 카테고리를 합쳐 최신순으로 돌려줍니다."""
+    items = [it for c in ([category] if category else CATEGORIES) for it in latest_in(c)]
     items.sort(key=lambda it: it.get("date", ""), reverse=True)
-    return items[:LIMIT]
+    return items
 
 
 def lambda_handler(event, context):
     params = event.get("queryStringParameters") or {}
     category = params.get("category")
-    if category and category not in {"univ", "contest", "jobs", "tech"}:
+    if category and category not in CATEGORIES:
         return _response(400, {"message": "category는 univ, contest, jobs, tech 중 하나여야 해요."})
     try:
         return _response(200, {"items": list_items(category)})
