@@ -14,7 +14,7 @@ AWS 리소스는 전부 [`template.yaml`](template.yaml)(AWS SAM) 하나로 관�
 | DynamoDB | `csradar-SubscriptionsTable-…` | 구독. PK `userId` + SK `keyword`, GSI `keyword-index` |
 | DynamoDB | `csradar-SeenTable-…` | 사이트 간 중복 비교용 키(60일 뒤 자동 삭제, TTL `expiresAt`)와 사이트별 밀린 글 목록(`source#사이트`, 만료 없음). PK `seenKey` |
 | S3 | `csradar-rawbucket-…` | 원문 HTML 백업 (비공개) |
-| Cognito User Pool | `csradar-users` | 로그인. 디스코드(OIDC) 로그인만 허용 |
+| Cognito User Pool | `csradar-users` | 로그인. 디스코드(OIDC) 로그인 + 이메일 회원가입 (인증 메일은 Cognito 기본 발신, 하루 50통) |
 | Cognito 도메인 | `csradar-<계정ID>.auth.us-east-1.amazoncognito.com` | 로그인 주소 |
 | Lambda + HTTP API | `csradar-me-api` | 로그인한 사용자의 키워드 구독 `/me/subscriptions` (JWT Authorizer로 토큰 검사) |
 
@@ -106,7 +106,9 @@ curl "<ApiUrl>/items"
 - 바로 한 번 더 실행했을 때 같은 글이 다시 저장되거나 채널에 또 올라오지 않으면 중복 제거가 동작하는 것입니다.
 - 채널 게시를 테스트하려고 밀린 글도 다시 알리고 싶다면, ItemsTable에서 해당 글과 SeenTable의 `source#사이트` 항목을 지우고 다시 실행합니다.
 
-로그인 확인: 웹(`http://localhost:8765`)에서 **로그인** → 디스코드 승인 → 오른쪽 "키워드 알림"에 키워드를 추가해 봅니다.
+로그인 확인: 웹(`http://localhost:8765`)에서 **로그인** → **디스코드로 로그인** → 디스코드 승인 → 오른쪽 "키워드 알림"에 키워드를 추가해 봅니다.
+이메일 가입은 **로그인** → **이메일로 회원가입** → 메일로 온 6자리 코드 입력 → 자동 로그인까지 되는지 봅니다. 이메일 사용자는 "키워드 알림"에 디스코드 안내만 보이면 맞습니다.
+인증 메일이 안 오면 스팸함을 확인해 주세요 (발신: `no-reply@verificationemail.com`). Cognito 기본 발신은 하루 50통까지입니다.
 토큰 없이 부르면 401이 나와야 합니다.
 
 ```bash
