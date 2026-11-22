@@ -20,7 +20,7 @@
     q: '',
     sort: 'latest',
     bookmarks: Bookmarks.all(),
-    user: null,           // 로그인한 사용자 { name }
+    user: null,           // 로그인한 사용자 { name, method: 'discord' | 'email' }
     subs: null,           // 구독 키워드 목록 (불러오기 전에는 null)
     authMsg: '',          // 로그인·구독 관련 안내/오류 문구
   };
@@ -152,16 +152,24 @@
   function render() { renderTabs(); renderFilters(); renderList(); renderRail(); }
 
   // ── 로그인 · 키워드 구독
+  const NOT_CONFIGURED = '로그인이 아직 연결되지 않았어요. 배포한 뒤 js/api.js에 API_BASE, AUTH_BASE, AUTH_CLIENT_ID를 넣어 주세요.';
+
   function renderAuth() {
     const msg = state.authMsg ? `<p class="panel-msg" role="status">${esc(state.authMsg)}</p>` : '';
     if (!state.user) {
-      $('authBox').innerHTML = '<button type="button" class="login-btn" data-login>로그인</button>';
+      $('authBox').innerHTML = '<button type="button" class="login-btn" data-open-login>로그인</button>';
       $('subsBody').innerHTML = `<p class="panel-text">디스코드로 로그인하면 알림 받을 키워드를 여기서 관리할 수 있어요.</p>
-        <button type="button" class="btn-discord" data-login>디스코드로 로그인</button>${msg}`;
+        <button type="button" class="btn-discord" data-login-discord>디스코드로 로그인</button>${msg}`;
       return;
     }
     $('authBox').innerHTML = `<span class="user" title="${esc(state.user.name)}">${esc(state.user.name)}</span>
       <button type="button" class="logout-btn" data-logout>로그아웃</button>`;
+    if (state.user.method === 'email') {
+      // 키워드 알림은 디스코드 DM으로만 보내므로 이메일 가입자는 안내만 보여 줍니다.
+      $('subsBody').innerHTML = `<p class="panel-text">키워드 알림은 디스코드 DM으로 보내요. 알림을 받으려면 디스코드로 로그인해 주세요.</p>
+        <button type="button" class="btn-discord" data-login-discord>디스코드로 로그인</button>${msg}`;
+      return;
+    }
     const chips = state.subs === null ? '<p class="panel-text">불러오는 중…</p>'
       : state.subs.length === 0 ? '<p class="panel-text">아직 구독한 키워드가 없어요.</p>'
       : `<ul class="sub-chips">${state.subs.map((k) =>
@@ -182,6 +190,145 @@
       .finally(renderAuth);
   }
 
+  // 로그인이 끝나면: 디스코드 사용자만 구독 목록을 불러옵니다 (이메일 가입자는 키워드 알림을 받을 수 없음).
+  function afterLogin() {
+    state.authMsg = '';
+    state.user = Auth.user();
+    state.subs = null;
+    renderAuth();
+    if (state.user && state.user.method === 'discord') syncSubs(Api.listSubscriptions());
+  }
+
+  // ── 로그인 · 회원가입 창 (이메일)
+  // 단계: login → (signup → confirm) | (forgot → reset). 비밀번호는 가입 직후 자동 로그인용으로 창이 열려 있는 동안만 기억합니다.
+  const authForm = { mode: 'login', email: '', password: '', info: '' };
+  let authBusy = false;
+
+  const inputField = (label, attrs) => `<label class="auth-field"><span>${label}</span><input ${attrs}></label>`;
+  const emailField = () => inputField('이메일', `name="email" type="email" autocomplete="email" maxlength="128" required value="${esc(authForm.email)}"`);
+  const codeField = () => inputField('인증 코드', 'name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required');
+  const pwHint = '<p class="auth-hint">8자 이상, 숫자를 하나 이상 넣어 주세요.</p>';
+  const backToLogin = '<p class="auth-switch"><button type="button" class="auth-link" data-auth-mode="login">로그인으로 돌아가기</button></p>';
+
+  const AUTH_VIEWS = {
+    login: () => ({
+      title: '로그인',
+      fields: `${emailField()}${inputField('비밀번호', 'name="password" type="password" autocomplete="current-password" required')}`,
+      submit: '로그인',
+      after: `<p class="auth-switch"><button type="button" class="auth-link" data-auth-mode="forgot">비밀번호를 잊었어요</button></p>
+        <div class="auth-or"><span>또는</span></div>
+        <button type="button" class="btn-discord" data-login-discord>디스코드로 로그인</button>
+        <p class="auth-switch">계정이 없나요? <button type="button" class="auth-link" data-auth-mode="signup">이메일로 회원가입</button></p>`,
+    }),
+    signup: () => ({
+      title: '회원가입',
+      fields: `${emailField()}
+        ${inputField('비밀번호', 'name="password" type="password" autocomplete="new-password" minlength="8" required')}
+        ${inputField('비밀번호 확인', 'name="password2" type="password" autocomplete="new-password" minlength="8" required')}${pwHint}`,
+      submit: '가입하고 인증 코드 받기',
+      after: `<p class="auth-note">키워드 알림(디스코드 DM)은 디스코드로 로그인해야 받을 수 있어요. 북마크는 로그인 없이도 쓸 수 있어요.</p>
+        <p class="auth-switch">이미 계정이 있나요? <button type="button" class="auth-link" data-auth-mode="login">로그인</button></p>`,
+    }),
+    confirm: () => ({
+      title: '이메일 인증',
+      fields: codeField(),
+      submit: '인증하고 로그인',
+      after: `<p class="auth-switch">메일이 안 왔나요? <button type="button" class="auth-link" data-auth-resend>코드 다시 받기</button></p>${backToLogin}`,
+    }),
+    forgot: () => ({
+      title: '비밀번호 찾기',
+      fields: emailField(),
+      submit: '인증 코드 받기',
+      after: backToLogin,
+    }),
+    reset: () => ({
+      title: '새 비밀번호 설정',
+      fields: `${codeField()}${inputField('새 비밀번호', 'name="password" type="password" autocomplete="new-password" minlength="8" required')}${pwHint}`,
+      submit: '비밀번호 바꾸고 로그인',
+      after: backToLogin,
+    }),
+  };
+
+  function setAuthMode(mode, info = '') {
+    authForm.mode = mode;
+    authForm.info = info;
+    const v = AUTH_VIEWS[mode]();
+    const dialog = $('authDialog');
+    dialog.innerHTML = `<div class="auth-head">
+        <h2 id="authTitle">${v.title}</h2>
+        <button type="button" class="auth-close" data-auth-close aria-label="닫기">×</button>
+      </div>
+      <form class="auth-form" data-auth-form="${mode}">
+        ${info ? `<p class="auth-info" role="status">${esc(info)}</p>` : ''}
+        ${v.fields}
+        <p class="auth-error" role="alert"></p>
+        <button type="submit" class="auth-submit">${v.submit}</button>
+      </form>${v.after}`;
+    const empty = [...dialog.querySelectorAll('input')].find((i) => !i.value);
+    if (empty) empty.focus();
+  }
+
+  function openAuth() {
+    const dialog = $('authDialog');
+    if (!dialog.open) dialog.showModal();
+    setAuthMode('login', Auth.configured ? '' : NOT_CONFIGURED); // 창을 연 뒤에 그려야 입력칸에 포커스가 감
+  }
+
+  function closeAuth() { $('authDialog').close(); }
+
+  async function submitAuth(form) {
+    if (authBusy) return;
+    const mode = form.dataset.authForm;
+    const data = Object.fromEntries(new FormData(form));
+    const btn = form.querySelector('.auth-submit');
+    const showError = (m) => { const el = form.querySelector('.auth-error'); if (el) el.textContent = m; };
+    if (data.email !== undefined) authForm.email = data.email.trim();
+    if (!Auth.configured) { showError(NOT_CONFIGURED); return; }
+    if (mode === 'signup' && data.password !== data.password2) { showError('비밀번호 확인이 맞지 않아요.'); return; }
+
+    authBusy = true;
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = '처리 중…'; showError('');
+    try {
+      if (mode === 'login') {
+        authForm.password = data.password;
+        try {
+          await Auth.loginWithEmail(authForm.email, data.password);
+        } catch (err) {
+          if (err.code !== 'UserNotConfirmedException') throw err;
+          await Auth.resendCode(authForm.email); // 가입만 하고 인증을 안 끝낸 계정: 코드를 새로 보내고 인증 단계로
+          setAuthMode('confirm', `이메일 인증이 아직 안 끝났어요. ${authForm.email} 주소로 보낸 6자리 코드를 입력해 주세요.`);
+          return;
+        }
+        closeAuth(); afterLogin();
+      } else if (mode === 'signup') {
+        authForm.password = data.password;
+        const dest = await Auth.signUp(authForm.email, data.password);
+        setAuthMode('confirm', `${dest} 주소로 인증 코드를 보냈어요. 메일에 있는 6자리 코드를 입력해 주세요.`);
+      } else if (mode === 'confirm') {
+        await Auth.confirmSignUp(authForm.email, data.code);
+        if (!authForm.password) { setAuthMode('login', '인증이 끝났어요. 로그인해 주세요.'); return; }
+        await Auth.loginWithEmail(authForm.email, authForm.password);
+        closeAuth(); afterLogin();
+      } else if (mode === 'forgot') {
+        await Auth.forgotPassword(authForm.email);
+        setAuthMode('reset', `${authForm.email} 주소로 보낸 인증 코드와 새 비밀번호를 입력해 주세요.`);
+      } else if (mode === 'reset') {
+        await Auth.resetPassword(authForm.email, data.code, data.password);
+        await Auth.loginWithEmail(authForm.email, data.password);
+        closeAuth(); afterLogin();
+      }
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      authBusy = false;
+      if (form.isConnected) { btn.disabled = false; btn.textContent = label; }
+    }
+  }
+
+  $('authDialog').addEventListener('close', () => { authForm.password = ''; });
+  $('authDialog').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeAuth(); }); // 바깥(배경) 클릭
+
   // ── 이벤트
   document.addEventListener('click', (e) => {
     const sub = e.target.closest('[data-subtype]');
@@ -190,17 +337,35 @@
     if (field) { const f = field.dataset.field; state.fields.has(f) ? state.fields.delete(f) : state.fields.add(f); renderFilters(); renderList(); return; }
     const bm = e.target.closest('[data-bm]');
     if (bm) { state.bookmarks = Bookmarks.toggle(bm.dataset.bm); renderTabs(); renderList(); return; }
-    if (e.target.closest('[data-login]')) {
+    if (e.target.closest('[data-open-login]')) { openAuth(); return; }
+    if (e.target.closest('[data-login-discord]')) {
       if (Auth.configured) { Auth.login(); return; }
-      state.authMsg = '로그인이 아직 연결되지 않았어요. 배포한 뒤 js/api.js에 API_BASE, AUTH_BASE, AUTH_CLIENT_ID를 넣어 주세요.';
+      if ($('authDialog').open) { $('authDialog').querySelector('.auth-error').textContent = NOT_CONFIGURED; return; }
+      state.authMsg = NOT_CONFIGURED;
       renderAuth(); return;
     }
-    if (e.target.closest('[data-logout]')) { Auth.logout(); return; }
+    const mode = e.target.closest('[data-auth-mode]');
+    if (mode) { setAuthMode(mode.dataset.authMode); return; }
+    if (e.target.closest('[data-auth-close]')) { closeAuth(); return; }
+    const resend = e.target.closest('[data-auth-resend]');
+    if (resend) {
+      const err = $('authDialog').querySelector('.auth-error');
+      resend.disabled = true;
+      Auth.resendCode(authForm.email)
+        .then(() => { err.textContent = ''; setAuthMode('confirm', `${authForm.email} 주소로 인증 코드를 다시 보냈어요.`); })
+        .catch((e2) => { err.textContent = e2.message; resend.disabled = false; });
+      return;
+    }
+    if (e.target.closest('[data-logout]')) {
+      if (!Auth.logout()) { state.user = null; state.subs = null; state.authMsg = ''; renderAuth(); } // 이메일 로그인은 이 자리에서 로그아웃
+      return;
+    }
     const unsub = e.target.closest('[data-unsub]');
     if (unsub) { syncSubs(Api.removeSubscription(unsub.dataset.unsub)); return; }
     if (e.target.closest('[data-nolink]')) e.preventDefault(); // 예시 데이터라 원문 링크가 없음
   });
   document.addEventListener('submit', (e) => {
+    if (e.target.dataset.authForm) { e.preventDefault(); submitAuth(e.target); return; }
     if (e.target.id !== 'subsForm') return;
     e.preventDefault();
     const keyword = $('subsInput').value.trim();
@@ -234,7 +399,7 @@
     .then(() => {
       state.user = Auth.user();
       renderAuth();
-      if (state.user) syncSubs(Api.listSubscriptions());
+      if (state.user && state.user.method === 'discord') syncSubs(Api.listSubscriptions());
     });
   Api.listItems()
     .then((items) => { state.items = items; render(); })
