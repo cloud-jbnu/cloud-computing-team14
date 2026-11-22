@@ -8,7 +8,11 @@ Parameters:
   CrawlSchedule:
     Type: String
     Default: rate(1 hour)
-    Description: 크롤러 실행 주기 (예 rate(30 minutes), cron(0 * * * ? *))
+    # 학교 게시판은 첫 쪽(10~20건)만 읽습니다. 바쁜 날은 하루 8건 넘게 올라와서 주기가 길면 글을 놓칩니다.
+    # 30분보다 짧으면 사이트에 요청이 너무 잦아집니다. 범위를 넓히려면 수집기가 여러 쪽을 읽게 먼저 고쳐야 합니다.
+    AllowedPattern: "^rate\\((([3-9][0-9]|1[0-7][0-9]|180) minutes|1 hour|[23] hours)\\)$"
+    ConstraintDescription: "rate(30 minutes) ~ rate(3 hours) 사이로 정해 주세요 (예: rate(30 minutes), rate(1 hour), rate(2 hours))"
+    Description: 크롤러 실행 주기. 30분~3시간 (예 rate(30 minutes), rate(1 hour))
   DiscordClientId:
     Type: String
     Description: 디스코드 개발자 포털 → OAuth2의 Client ID
@@ -21,6 +25,19 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: 디스코드 개발자 포털 → Bot의 Token. 새 글 DM 알림에 씁니다 (비워 두면 알림 꺼짐, 파일에 적지 않습니다)
+  DiscordGuildId:
+    Type: String
+    Default: ""
+    Description: 새 글을 올릴 디스코드 서버 ID. 봇 토큰과 함께 있어야 채널 게시가 켜집니다 (비워 두면 꺼짐)
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Google AI Studio에서 발급한 Gemini API 키. 새 글 AI 요약에 씁니다 (비워 두면 요약 꺼짐, 파일에 적지 않습니다)
+  GeminiModel:
+    Type: String
+    Default: gemini-flash-lite-latest
+    Description: 요약에 쓸 Gemini 모델 이름
   WebOrigin:
     Type: String
     Default: http://localhost:8765
@@ -36,6 +53,7 @@ Globals:
       Variables:
         ITEMS_TABLE: !Ref ItemsTable
         SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
+        SEEN_TABLE: !Ref SeenTable
         RAW_BUCKET: !Ref RawBucket
   HttpApi:
     CorsConfiguration:
@@ -87,6 +105,18 @@ Resources:
             - { AttributeName: userId, KeyType: RANGE }
           Projection: { ProjectionType: KEYS_ONLY }
 
+  SeenTable:
+    Type: AWS::DynamoDB::Table                 # 사이트 간 중복 비교용 키 (crawler/src/dedupe.py)
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: seenKey, AttributeType: S }
+      KeySchema:
+        - { AttributeName: seenKey, KeyType: HASH }
+      TimeToLiveSpecification:                 # expiresAt(초 단위 시각)이 지난 키는 DynamoDB가 지웁니다
+        AttributeName: expiresAt
+        Enabled: true
+
   RawBucket:
     Type: AWS::S3::Bucket                      # 원문 HTML 백업
     Properties:
@@ -108,6 +138,9 @@ Resources:
       Environment:
         Variables:
           DISCORD_BOT_TOKEN: !Ref DiscordBotToken   # 새 글 DM 알림 (crawler/src/notify.py)
+          DISCORD_GUILD_ID: !Ref DiscordGuildId     # 새 글 채널 게시 (crawler/src/channels.py)
+          GEMINI_API_KEY: !Ref GeminiApiKey         # 새 글 AI 요약 (crawler/src/summarize.py)
+          GEMINI_MODEL: !Ref GeminiModel
       Events:
         Schedule:
           Type: Schedule                       # EventBridge 규칙 (역할 생성 불필요)
@@ -220,5 +253,7 @@ Outputs:
     Value: !Ref ItemsTable
   SubscriptionsTableName:
     Value: !Ref SubscriptionsTable
+  SeenTableName:
+    Value: !Ref SeenTable
   RawBucketName:
     Value: !Ref RawBucket

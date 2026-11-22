@@ -51,4 +51,4 @@ js/app.js       라우팅(#all #univ #contest #jobs #tech #saved), 필터, 렌�
 }
 ```
 
-AI 요약은 아직 넣지 않았습니다. 나중에 Item에 `summary` 필드를 추가하고 `app.js`의 `itemHTML`에서 표시하면 됩니다.
+Item에 `summary`(AI 요약, 문자열 배열)가 있으면 `app.js`의 `itemHTML`이 제목 아래에 한 줄씩 보여 줍니다. 요약은 크롤러가 글을 저장할 때 만들어 붙이며, 없는 글은 제목만 나옵니다.

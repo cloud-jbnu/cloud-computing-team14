@@ -4,7 +4,7 @@
   const FIELD = Object.fromEntries(FIELDS.map((f) => [f.id, f]));
   const CAT_DESC = {
     all: '대학 소식, 공모전, 채용, 테크 트렌드를 한곳에서 봐요.',
-    univ: '주요 대학 컴퓨터 관련 학과·사업단 공지',
+    univ: '전북대·충북대·경북대·부산대 학교 공지',
     contest: '해커톤, 공모전, 경진대회, CTF',
     jobs: '인턴, 신입 공채, 채용연계형 프로그램',
     tech: 'GitHub 트렌딩, 최신 기술, 개발 이슈',
@@ -101,6 +101,9 @@
       `<span class="dday ${dl < 0 ? 'closed' : dl <= 7 ? 'soon' : ''}" title="마감 ${esc(it.deadline)}">${ddayText(dl)}</span>`;
     const repo = it.repo ? `<span class="repo-meta">${esc(it.repo.lang)} · ★ ${it.repo.starsToday} today</span>` : '';
     const saved = state.bookmarks.has(it.id);
+    // AI 요약 (크롤러가 새 글을 저장할 때 붙임). 없는 글은 제목만 보여 줍니다.
+    const summary = Array.isArray(it.summary) && it.summary.length
+      ? `<ul class="item-summary" aria-label="AI 요약">${it.summary.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : '';
     return `<li class="item" style="--cat-color: var(--c-${it.category})">
       <div>
         <div class="item-meta">
@@ -109,6 +112,7 @@
           <time datetime="${it.date}">${relDate(it.date)}</time>
         </div>
         <a class="item-title ${it.repo ? 'mono' : ''}" ${linkAttrs(it.url)}>${esc(it.title)}</a>
+        ${summary}
         <div class="tags">${it.fields.map((f) => `<span>#${FIELD[f].label}</span>`).join('')}${repo}</div>
       </div>
       <div class="item-side">
