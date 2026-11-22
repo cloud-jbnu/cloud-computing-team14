@@ -162,12 +162,30 @@ Resources:
             Path: /items
             Method: GET
 
-  # ── 로그인: Cognito User Pool + 디스코드(OIDC) ─────────
+  # ── 로그인: Cognito User Pool + 디스코드(OIDC) + 이메일 회원가입 ─────────
   # User Pool은 IAM 역할이 필요 없어서 Learner Lab에서도 만들 수 있습니다.
+  # 이메일 가입자는 사용자 이름이 이메일 주소(소문자)이고, 디스코드 사용자는 "Discord_<ID>"입니다.
+  # 아래 설정은 모두 기존 User Pool을 그대로 둔 채 바꿀 수 있는 항목이라 이미 가입한 사용자는 유지됩니다.
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub "${AWS::StackName}-users"
+      AutoVerifiedAttributes: [email]          # 가입하면 인증 코드를 메일로 보냄 (Cognito 기본 발신, 하루 50통)
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireNumbers: true
+          RequireLowercase: false
+          RequireUppercase: false
+          RequireSymbols: false
+      AccountRecoverySetting:                  # 비밀번호 찾기: 인증된 이메일로 코드 받기
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: "[컴공레이더] 인증 코드"
+        EmailMessage: "컴공레이더 인증 코드는 {####} 입니다. 화면에 입력해 주세요."
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain         # 로그인 주소: https://<Domain>.auth.<리전>.amazoncognito.com
@@ -198,11 +216,13 @@ Resources:
       UserPoolId: !Ref UserPool
       ClientName: web
       GenerateSecret: false                    # 브라우저에서 쓰므로 비밀 값 없이 PKCE로 로그인
-      SupportedIdentityProviders: [Discord]    # 디스코드 로그인만 허용
+      SupportedIdentityProviders: [Discord, COGNITO]  # 디스코드 + 이메일 가입자
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows: [code]
       AllowedOAuthScopes: [openid, profile]
-      ExplicitAuthFlows: [ALLOW_REFRESH_TOKEN_AUTH]
+      # 이메일 로그인은 웹 화면에서 Cognito API(InitiateAuth)를 직접 부릅니다. 비밀번호는 HTTPS로 Cognito에만 갑니다.
+      ExplicitAuthFlows: [ALLOW_USER_PASSWORD_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+      PreventUserExistenceErrors: ENABLED      # 로그인 실패 때 "없는 계정"인지 드러내지 않기
       CallbackURLs:
         - !Sub "${WebOrigin}/"
       LogoutURLs:
