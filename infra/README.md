@@ -17,8 +17,10 @@ AWS 리소스는 전부 [`template.yaml`](template.yaml)(AWS SAM) 하나로 관�
 | Cognito User Pool | `csradar-users` | 로그인. 디스코드(OIDC) 로그인 + 이메일 회원가입 (인증 메일은 Cognito 기본 발신, 하루 50통) |
 | Cognito 도메인 | `csradar-<계정ID>.auth.us-east-1.amazoncognito.com` | 로그인 주소 |
 | Lambda + HTTP API | `csradar-me-api` | 로그인한 사용자의 키워드 구독 `/me/subscriptions` (JWT Authorizer로 토큰 검사) |
+| Lambda + HTTP API | `csradar-chat-api` | 챗봇 `POST /chat` (로그인 필요). 모아 둔 글에서 골라 Gemini로 답함. `GeminiApiKey`가 없으면 503 |
+| DynamoDB | `csradar-ChatUsageTable-…` | 챗봇 하루 질문 수 (사용자당 30번, 이틀 뒤 자동 삭제, TTL `expiresAt`). PK `userDay` |
 
-테이블·버킷 이름은 CloudFormation이 정하고, Lambda에는 환경변수 `ITEMS_TABLE`, `SUBSCRIPTIONS_TABLE`, `SEEN_TABLE`, `RAW_BUCKET`으로 들어갑니다.
+테이블·버킷 이름은 CloudFormation이 정하고, Lambda에는 환경변수 `ITEMS_TABLE`, `SUBSCRIPTIONS_TABLE`, `SEEN_TABLE`, `RAW_BUCKET`(챗봇은 `CHAT_USAGE_TABLE`도)으로 들어갑니다.
 
 ## Learner Lab 제약과 대응
 
@@ -114,6 +116,9 @@ curl "<ApiUrl>/items"
 ```bash
 curl -i "<ApiUrl>/me/subscriptions"
 ```
+
+챗봇 확인: 로그인한 뒤 오른쪽 아래 **AI에게 물어보기** → 추천 질문을 눌러 봅니다. 답과 함께 글 카드가 나오면 됩니다.
+"챗봇이 아직 연결되지 않았어요"가 나오면 배포할 때 `GeminiApiKey`를 넘기지 않은 것입니다. 답이 늦거나 실패하면 CloudWatch 로그 그룹 `/aws/lambda/csradar-chat-api`를 봅니다 (HTTP API는 30초가 지나면 끊습니다).
 
 처음 로그인했을 때 `GET /me/subscriptions` 응답의 `userId`가 내 디스코드 사용자 ID(디스코드에서 프로필 우클릭 → ID 복사)와 같은지 확인해 주세요. 봇과 같은 구독 목록을 쓰려면 이 값이 같아야 합니다.
 
