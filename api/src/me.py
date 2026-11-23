@@ -10,6 +10,7 @@ API Gateway(JWT Authorizer)가 Cognito 토큰을 먼저 검사하므로, 여기�
 import base64
 import json
 import os
+import re
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -28,13 +29,23 @@ def _response(status, body):
 
 
 def discord_id(event):
-    """Cognito는 디스코드로 로그인한 사용자 이름을 "discord_<디스코드 ID>"로 만듭니다."""
+    """디스코드로 로그인한 사용자의 디스코드 ID. 이메일 가입자 등 그 밖의 사용자는 None.
+
+    Cognito는 디스코드 사용자 이름을 "Discord_<디스코드 ID>"로 만들고, 그 사용자를
+    "<User Pool ID>_Discord" 그룹에 자동으로 넣습니다. 이메일 가입자가 사용자 이름을
+    "discord_123..."처럼 지어 남의 구독을 건드리지 못하도록 그룹까지 확인합니다.
+    (HTTP API는 배열 클레임을 "[a b]" 같은 문자열로 넘겨 줍니다.)
+    """
     try:
-        username = event["requestContext"]["authorizer"]["jwt"]["claims"]["username"]
+        claims = event["requestContext"]["authorizer"]["jwt"]["claims"]
+        username = claims["username"]
     except (KeyError, TypeError):
         return None
+    groups = re.findall(r"[\w-]+", str(claims.get("cognito:groups", "")))
+    if not any(g.endswith("_Discord") for g in groups):
+        return None
     provider, _, user_id = str(username).partition("_")
-    return user_id if provider.lower() == "discord" and user_id else None
+    return user_id if provider.lower() == "discord" and user_id.isdigit() else None
 
 
 def clean_keyword(raw):
@@ -61,7 +72,7 @@ def _body(event):
 def lambda_handler(event, context):
     user_id = discord_id(event)
     if not user_id:
-        return _response(403, {"message": "디스코드로 로그인한 계정만 쓸 수 있어요."})
+        return _response(403, {"message": "키워드 알림은 디스코드 DM으로 보내서, 디스코드로 로그인한 계정만 쓸 수 있어요."})
 
     method = event.get("requestContext", {}).get("http", {}).get("method")
     try:
