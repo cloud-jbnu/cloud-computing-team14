@@ -30,12 +30,33 @@
       <span class="chat-item-title">${esc(it.title || '')}</span></a>`;
   }
 
-  function bubble(m) {
-    const text = esc(m.text).replace(/\n/g, '<br>');
-    if (m.role === 'user') return `<div class="chat-msg user"><p>${text}</p></div>`;
-    const items = m.items && m.items.length ? `<div class="chat-items">${m.items.map(itemCard).join('')}</div>` : '';
-    return `<div class="chat-msg bot ${m.error ? 'error' : ''}"><p>${text}</p>${items}</div>`;
+  const paragraph = (s) => `<p>${esc(s).replace(/\n/g, '<br>')}</p>`;
+
+  // 웹 검색 결과. Google 검색 결과는 Google이 준 "검색 추천"(suggestionsHtml)과 함께, 다른 내용과 섞지 않고 보여야 합니다.
+  // 검색 추천 HTML은 Google이 만든 것이지만 이 페이지와 섞이지 않게 샌드박스 iframe에 넣습니다 (링크는 새 탭).
+  function webBlock(web) {
+    const sources = web.sources && web.sources.length
+      ? `<ul class="chat-sources">${web.sources.filter((s) => /^https?:\/\//i.test(s.url)).map((s) =>
+          `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a></li>`).join('')}</ul>`
+      : '';
+    const suggestions = web.suggestionsHtml
+      ? `<iframe class="chat-suggestions" title="Google 검색 추천" sandbox="allow-popups allow-popups-to-escape-sandbox"
+          srcdoc="${esc(`<base target="_blank">${web.suggestionsHtml}`)}"></iframe>`
+      : '';
+    return `<div class="chat-msg bot web">
+      <span class="chat-web-label">웹 검색 결과 · 원문을 꼭 확인해 주세요</span>
+      ${paragraph(web.answer)}${sources}${suggestions}</div>`;
   }
+
+  function bubble(m) {
+    if (m.role === 'user') return `<div class="chat-msg mine">${paragraph(m.text)}</div>`;
+    const items = m.items && m.items.length ? `<div class="chat-items">${m.items.map(itemCard).join('')}</div>` : '';
+    const notice = m.notice ? `<div class="chat-notice">${esc(m.notice)}</div>` : '';
+    return `<div class="chat-msg bot ${m.error ? 'error' : ''}">${paragraph(m.text)}${items}${notice}</div>${m.web ? webBlock(m.web) : ''}`;
+  }
+
+  // 서버에 보낼 앞선 대화의 답: 웹 검색 답이 있으면 이어 붙여 "거기 마감은 언제야?" 같은 질문도 이어지게
+  const historyText = (m) => (m.web ? `${m.text}\n\n[웹 검색] ${m.web.answer}` : m.text);
 
   function renderLog() {
     const user = Auth.user();
@@ -77,13 +98,13 @@
     text = text.trim();
     if (!text || busy) return;
     // 앞선 대화: 오류 응답은 빼고 최근 HISTORY개
-    const history = messages.filter((m) => !m.error).slice(-HISTORY).map((m) => ({ role: m.role, text: m.text }));
+    const history = messages.filter((m) => !m.error).slice(-HISTORY).map((m) => ({ role: m.role, text: historyText(m) }));
     messages.push({ role: 'user', text });
     busy = true;
     render();
     Api.chat(text, history)
       .then((res) => {
-        messages.push({ role: 'model', text: res.answer, items: res.items || [] });
+        messages.push({ role: 'model', text: res.answer, items: res.items || [], web: res.web || null, notice: res.notice || '' });
         if (typeof res.remaining === 'number') remaining = res.remaining;
       })
       .catch((err) => { messages.push({ role: 'model', text: err.message, error: true }); })
