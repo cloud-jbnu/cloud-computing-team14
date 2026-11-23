@@ -157,6 +157,7 @@ def test_add_summaries_attaches_results(monkeypatch):
         seen["bodies"] = bodies
         return {"a-1": {"summary": ["요약 한 줄"], "fields": ["ai"]}}
 
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setattr(handler.summarize, "summarize", fake_summarize)
     assert handler.add_summaries(items, raws) == 1
     assert seen["bodies"] == {"a-1": "본문", "a-2": ""}
@@ -168,6 +169,7 @@ def test_add_summaries_failure_keeps_items(monkeypatch):
     def boom(items, bodies):
         raise RuntimeError("Gemini 장애")
 
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setattr(handler.summarize, "summarize", boom)
     items, _ = handler.validate([raw("a-1")])
     assert handler.add_summaries(items, [raw("a-1")]) == 0
@@ -178,8 +180,10 @@ def test_items_without_key_are_saved_without_summary(monkeypatch):
     """GEMINI_API_KEY가 없으면 요약 없이 저장까지 그대로 진행됩니다."""
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     items_table, seen_table = tables()
-    raws = [raw("a-1")]
+    source = FakeSource({"a-1": "본문"})
+    raws = [raw("a-1", _module=source)]
     new_items, _ = handler.find_new(raws, items_table, seen_table)
     assert handler.add_summaries(new_items, raws) == 0
+    assert source.asked == []   # 요약하지 않을 글의 본문 페이지는 요청하지 않음
     assert [it["id"] for it in handler.save(new_items, items_table)] == ["a-1"]
     assert "summary" not in items_table.rows["a-1"]

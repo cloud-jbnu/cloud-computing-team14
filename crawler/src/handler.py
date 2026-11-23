@@ -183,6 +183,10 @@ def load_bodies(items, raw_items, pause=BODY_PAUSE):
 
 def add_summaries(items, raw_items):
     """새 글에 AI 요약을 붙입니다. 실패하면 요약 없이 그대로 둡니다 (수집·저장은 계속)."""
+    if not os.environ.get("GEMINI_API_KEY"):
+        # 본문은 요약에만 쓰므로, 요약이 꺼져 있으면 본문 페이지(새 글마다 요청 1번)도 가져오지 않습니다.
+        print("요약 건너뜀: GEMINI_API_KEY가 없음")
+        return 0
     try:
         results = summarize.summarize(items, load_bodies(items, raw_items))
         summarize.apply(items, results)
