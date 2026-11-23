@@ -83,5 +83,45 @@ DynamoDB `SUBSCRIPTIONS_TABLE`에 한 줄이 "사용자 한 명 + 키워드 한 
 
 잘못된 요청은 `400`과 `{ "message": "..." }`.
 
+## POST /chat (로그인 필요)
+
+수집한 글에서 골라 답하는 챗봇입니다 (`api/src/chat.py`, Gemini). 이메일·디스코드 로그인 모두 쓸 수 있습니다.
+
+요청
+
+```json
+{ "message": "이번 주 마감인 AI 해커톤 있어?", "history": [{ "role": "user", "text": "..." }, { "role": "model", "text": "..." }] }
+```
+
+- `message`: 1~500자
+- `history`: 앞선 대화 (선택). 최근 6개까지만 쓰고, 각 1000자로 자릅니다. `role`은 `user` 또는 `model`
+
+응답 `200`
+
+```json
+{
+  "answer": "이번 주에 마감하는 해커톤이 2개 있어요. ...",
+  "items": [Item, ...],
+  "web": null,
+  "notice": null,
+  "remaining": 27
+}
+```
+
+- `answer`, `items`: 모아 둔 글에서 찾은 답과 글 (최대 5개, Item 형식 그대로). 마감이 지난 글은 고르지 않습니다.
+- `web`: 모아 둔 글로는 답할 수 없는 질문(예: "하버드대 해커톤 알려줘")이면 Gemini의 Google 검색으로 찾은 답. 검색하지 않았으면 `null`.
+  ```json
+  { "answer": "...", "sources": [{ "title": "harvard.edu", "url": "https://..." }], "suggestionsHtml": "<style>...</style><div>...</div>" }
+  ```
+  `suggestionsHtml`은 Google이 준 "검색 추천" HTML입니다. Gemini API 약관상 웹 검색 답은 이 검색 추천과 함께 보여야 하고, 다른 내용과 섞으면 안 됩니다. 웹은 샌드박스 iframe에 넣어 보여 줍니다.
+- `notice`: 웹 검색을 하려다 못 했을 때 그 이유 (사용자·사이트 전체 하루 한도를 다 씀, 검색 실패 등). 없으면 `null`.
+- `remaining`: 오늘 남은 질문 수 (사용자당 하루 30번, 한국 시간 기준)
+
+웹 검색은 돈이 드는 기능이라 따로 제한합니다. 사용자당 하루 `ChatSearchPerUser`번(기본 5), 사이트 전체 하루 `ChatSearchPerDay`번(기본 100). 질문 30번 안에서 세고, 한도를 넘으면 오류 없이 모아 둔 글로만 답합니다.
+
+오류: `400` 질문이 비었거나 너무 김 · `401` 로그인 필요 · `429` 오늘 질문 수를 다 씀 · `502` Gemini 응답 실패 · `503` Gemini 키가 없음. 모두 `{ "message": "..." }`.
+
+## /me/subscriptions 권한
+
 키워드 알림은 디스코드 DM으로 보내므로 **디스코드로 로그인한 사용자만** 쓸 수 있습니다. 이메일로 로그인한 토큰으로 부르면 `403`.
 (디스코드 사용자인지는 사용자 이름과 함께, Cognito가 자동으로 넣어 주는 `<User Pool ID>_Discord` 그룹으로 확인합니다.)

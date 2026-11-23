@@ -197,7 +197,11 @@
     state.subs = null;
     renderAuth();
     if (state.user && state.user.method === 'discord') syncSubs(Api.listSubscriptions());
+    authChanged();
   }
+
+  // 로그인 상태가 바뀌었음을 다른 화면(챗봇 등)에 알립니다.
+  function authChanged() { window.dispatchEvent(new Event('csradar:auth')); }
 
   // ── 로그인 · 회원가입 창 (이메일)
   // 단계: login → (signup → confirm) | (forgot → reset). 비밀번호는 가입 직후 자동 로그인용으로 창이 열려 있는 동안만 기억합니다.
@@ -357,7 +361,7 @@
       return;
     }
     if (e.target.closest('[data-logout]')) {
-      if (!Auth.logout()) { state.user = null; state.subs = null; state.authMsg = ''; renderAuth(); } // 이메일 로그인은 이 자리에서 로그아웃
+      if (!Auth.logout()) { state.user = null; state.subs = null; state.authMsg = ''; renderAuth(); authChanged(); } // 이메일 로그인은 이 자리에서 로그아웃
       return;
     }
     const unsub = e.target.closest('[data-unsub]');
@@ -400,6 +404,7 @@
       state.user = Auth.user();
       renderAuth();
       if (state.user && state.user.method === 'discord') syncSubs(Api.listSubscriptions());
+      authChanged();
     });
   Api.listItems()
     .then((items) => { state.items = items; render(); })

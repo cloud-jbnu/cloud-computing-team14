@@ -33,11 +33,26 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ""
-    Description: Google AI Studio에서 발급한 Gemini API 키. 새 글 AI 요약에 씁니다 (비워 두면 요약 꺼짐, 파일에 적지 않습니다)
+    Description: Google AI Studio에서 발급한 Gemini API 키. 새 글 AI 요약과 챗봇에 씁니다 (비워 두면 둘 다 꺼짐, 파일에 적지 않습니다)
   GeminiModel:
     Type: String
     Default: gemini-flash-lite-latest
-    Description: 요약에 쓸 Gemini 모델 이름
+    Description: 요약과 챗봇에 쓸 Gemini 모델 이름
+  ChatSearchPerUser:
+    Type: Number
+    Default: 5
+    MinValue: 0
+    Description: 챗봇 웹 검색(Google 검색) 사용자 한 명당 하루 횟수. 0이면 웹 검색 끔
+  ChatSearchPerDay:
+    Type: Number
+    Default: 100
+    MinValue: 0
+    # Gemini 3 이후 모델은 검색 한 번마다 요금이 붙습니다 (무료 한도를 넘으면 유료). 한도는 Gemini 가격 페이지 확인
+    Description: 챗봇 웹 검색 사이트 전체 하루 횟수. 0이면 웹 검색 끔
+  ChatSearchModel:
+    Type: String
+    Default: ""
+    Description: 챗봇 웹 검색에 쓸 Gemini 모델 (비워 두면 GeminiModel과 같음). 키의 요금제에서 검색이 안 되는 모델이면 다른 모델로
   WebOrigin:
     Type: String
     Default: http://localhost:8765
@@ -58,7 +73,7 @@ Globals:
   HttpApi:
     CorsConfiguration:
       AllowOrigins: ["*"]
-      AllowMethods: [GET, PUT, DELETE, OPTIONS]
+      AllowMethods: [GET, POST, PUT, DELETE, OPTIONS]
       AllowHeaders: [Content-Type, Authorization]
     Auth:
       Authorizers:
@@ -114,6 +129,18 @@ Resources:
       KeySchema:
         - { AttributeName: seenKey, KeyType: HASH }
       TimeToLiveSpecification:                 # expiresAt(초 단위 시각)이 지난 키는 DynamoDB가 지웁니다
+        AttributeName: expiresAt
+        Enabled: true
+
+  ChatUsageTable:
+    Type: AWS::DynamoDB::Table                 # 챗봇 하루 사용량 (api/src/chat.py). 키: "<sub>#<날짜>"(질문), "<sub>#<날짜>#search", "global#<날짜>#search"(웹 검색)
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: userDay, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userDay, KeyType: HASH }
+      TimeToLiveSpecification:
         AttributeName: expiresAt
         Enabled: true
 
@@ -256,6 +283,31 @@ Resources:
             Method: DELETE
             Auth: { Authorizer: CognitoAuth }
 
+  # ── 챗봇: POST /chat (로그인 필요) ─────────────────────
+  ChatApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-chat-api"
+      CodeUri: ../api/src
+      Handler: chat.lambda_handler
+      Timeout: 29                              # HTTP API가 30초에 끊으므로 그보다 짧게
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Environment:
+        Variables:
+          CHAT_USAGE_TABLE: !Ref ChatUsageTable
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          CHAT_SEARCH_PER_USER: !Ref ChatSearchPerUser
+          CHAT_SEARCH_PER_DAY: !Ref ChatSearchPerDay
+          CHAT_SEARCH_MODEL: !Ref ChatSearchModel
+      Events:
+        Chat:
+          Type: HttpApi
+          Properties:
+            Path: /chat
+            Method: POST
+            Auth: { Authorizer: CognitoAuth }
+
 Outputs:
   ApiUrl:
     Description: web/js/api.js의 API_BASE에 넣을 주소
@@ -275,5 +327,7 @@ Outputs:
     Value: !Ref SubscriptionsTable
   SeenTableName:
     Value: !Ref SeenTable
+  ChatUsageTableName:
+    Value: !Ref ChatUsageTable
   RawBucketName:
     Value: !Ref RawBucket

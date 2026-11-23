@@ -41,6 +41,16 @@ window.Api = {
     return authedFetch(`/me/subscriptions?keyword=${encodeURIComponent(keyword)}`, { method: 'DELETE' });
   },
 
+  // 챗봇 (로그인 필요). history = [{ role: 'user' | 'model', text }]
+  // → { answer, items: [Item, ...], remaining: 오늘 남은 질문 수 }
+  chat(message, history) {
+    return authedFetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history }),
+    });
+  },
+
   async listItems() {
     if (!API_BASE) return structuredClone(window.SAMPLE_ITEMS);
     const res = await fetch(`${API_BASE}/items`);
