@@ -1,0 +1,3 @@
+# Libraries bundled into the Lambda package (read by sam build). boto3 is already in the Lambda runtime.
+# Keep this file ASCII-only: pip on Korean Windows reads it as cp949 during sam build.
+PyNaCl>=1.5
