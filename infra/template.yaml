@@ -29,6 +29,10 @@ Parameters:
     Type: String
     Default: ""
     Description: 새 글을 올릴 디스코드 서버 ID. 봇 토큰과 함께 있어야 채널 게시가 켜집니다 (비워 두면 꺼짐)
+  DiscordPublicKey:
+    Type: String
+    Default: ""
+    Description: 디스코드 개발자 포털 → General Information의 Public Key. 봇 명령어(/구독 등) 요청의 서명 검사에 씁니다 (비워 두면 명령어 꺼짐)
   GeminiApiKey:
     Type: String
     NoEcho: true
@@ -283,6 +287,27 @@ Resources:
             Method: DELETE
             Auth: { Authorizer: CognitoAuth }
 
+  # ── 디스코드 봇 명령어: POST /discord/interactions ────
+  # 디스코드가 직접 부르는 주소라 로그인(JWT) 대신 요청의 서명을 Lambda가 검사합니다 (bot/src/interactions.py).
+  BotFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-bot"
+      CodeUri: ../bot/src
+      Handler: interactions.lambda_handler
+      Timeout: 10
+      MemorySize: 512                          # 디스코드는 3초 안에 답을 받아야 해서, 처음 깨어날 때도 빠르게
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Environment:
+        Variables:
+          DISCORD_PUBLIC_KEY: !Ref DiscordPublicKey
+      Events:
+        Interactions:
+          Type: HttpApi
+          Properties:
+            Path: /discord/interactions
+            Method: POST
+
   # ── 챗봇: POST /chat (로그인 필요) ─────────────────────
   ChatApiFunction:
     Type: AWS::Serverless::Function
@@ -321,6 +346,9 @@ Outputs:
   DiscordRedirectUri:
     Description: 디스코드 개발자 포털 → OAuth2 → Redirects에 등록할 주소
     Value: !Sub "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/oauth2/idpresponse"
+  DiscordInteractionsUrl:
+    Description: 디스코드 개발자 포털 → General Information → Interactions Endpoint URL에 넣을 주소
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/discord/interactions"
   ItemsTableName:
     Value: !Ref ItemsTable
   SubscriptionsTableName:
