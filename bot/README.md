@@ -2,12 +2,42 @@
 
 디스코드 봇. 사용자가 카테고리·분야·키워드를 구독하면 새 글이 올라올 때 DM으로 알려줍니다.
 
-> **새 글 DM 알림은 이 폴더가 아니라 크롤러 Lambda([`crawler/src/notify.py`](../crawler/src/notify.py))가 보냅니다.**
-> 같은 봇 토큰으로 REST API를 호출하므로 봇 프로그램을 켜 두지 않아도 알림이 갑니다.
-> 알림을 받으려면 봇이 들어가 있는 디스코드 서버에 사용자도 들어가 있어야 합니다.
->
-> 아래 `src/bot.py`는 명령어 연습용 뼈대이고 구독을 메모리에만 저장합니다. 웹·알림과 같은 구독 목록을 쓰려면
-> Interactions Endpoint(Lambda)로 옮겨 DynamoDB `SUBSCRIPTIONS_TABLE`을 쓰게 해야 합니다 (다음 작업).
+봇 프로그램을 켜 두는 서버는 없습니다. 하는 일이 둘로 나뉘어 각각 Lambda에서 돕니다.
+
+| 하는 일 | 어디서 | 언제 |
+|---|---|---|
+| 명령어 `/구독` `/해지` `/목록` | 이 폴더의 [`src/interactions.py`](src/interactions.py) (Lambda `csradar-bot`) | 사용자가 명령어를 쓸 때 디스코드가 호출 |
+| 새 글 DM 알림, 서버 채널 게시 | 크롤러 Lambda ([`notify.py`](../crawler/src/notify.py), [`channels.py`](../crawler/src/channels.py)) | 크롤러가 새 글을 저장한 직후 |
+
+- 구독은 웹의 "키워드 알림"과 **같은 DynamoDB 테이블**(`SUBSCRIPTIONS_TABLE`)에 저장합니다. 디스코드에서 넣은 키워드가 웹에 보이고, 웹에서 넣은 키워드가 `/목록`에 보입니다.
+- 키워드는 1~30자, 한 사람당 20개까지 (웹과 같은 규칙, [docs/api.md](../docs/api.md)).
+- DM을 받으려면 봇이 들어가 있는 디스코드 서버에 사용자도 들어가 있어야 합니다.
+
+## 명령어
+
+| 명령어 | 동작 |
+|---|---|
+| `/구독 <키워드>` | 키워드 구독 (예: `/구독 해커톤`, `/구독 장학금`). 새 글의 제목·출처·구분에 키워드가 들어 있으면 DM |
+| `/해지 <키워드>` | 구독 해지. 입력하는 동안 내 구독 목록이 선택지로 뜹니다 |
+| `/목록` | 내 구독 목록 보기 |
+
+답장은 명령어를 쓴 사람에게만 보입니다. 서버 채널에서도, 봇과의 DM에서도 쓸 수 있습니다.
+
+### 명령어 켜기 (배포한 뒤 한 번)
+
+1. [개발자 포털](https://discord.com/developers/applications) → 앱 → **General Information**의 **Public Key**를 복사해, 배포할 때 `DiscordPublicKey=<Public Key>`로 넘깁니다 ([infra/README.md](../infra/README.md)). 비밀 값은 아니지만 이 값이 없으면 Lambda가 모든 요청을 거부합니다.
+2. 배포 Outputs의 `DiscordInteractionsUrl`을 같은 화면의 **Interactions Endpoint URL**에 넣고 저장합니다. 디스코드가 그 자리에서 확인 요청을 보내 보고, 통과해야 저장됩니다. "could not be verified"가 나오면 Public Key가 맞는지, 배포가 끝났는지 확인합니다.
+3. 명령어를 등록합니다 (`.env`에 `DISCORD_BOT_TOKEN`, `DISCORD_APPLICATION_ID` 필요).
+   ```bash
+   cd bot
+   pip install -r requirements.txt
+   python src/register.py --guild   # .env의 DISCORD_GUILD_ID 서버에만, 바로 반영 (테스트용)
+   python src/register.py           # 모든 서버 + 봇과의 DM, 반영까지 최대 1시간
+   ```
+   명령어 이름·옵션을 바꿨을 때만 다시 실행하면 됩니다. 코드만 고쳤다면 `sam deploy`로 충분합니다.
+4. 디스코드에서 `/구독 해커톤` → `/목록`, 그리고 웹에 디스코드로 로그인해 "키워드 알림"에 같은 키워드가 보이는지 확인합니다.
+
+봇을 서버에 초대할 때 scope에 `bot`과 함께 **`applications.commands`** 도 체크해야 서버에서 명령어가 보입니다.
 
 ## 서버 채널에 새 글 올리기 (크롤러가 게시)
 
@@ -28,7 +58,7 @@
 
 ### 2. 봇 권한
 
-봇을 서버에 초대할 때(개발자 포털 → **OAuth2 → URL Generator**, scope `bot`) 아래 권한을 줍니다.
+봇을 서버에 초대할 때(개발자 포털 → **OAuth2 → URL Generator**, scope `bot` + `applications.commands`) 아래 권한을 줍니다.
 
 - 채널 보기, 메시지 보내기, 링크 첨부(Embed Links)
 - `@everyone`, `@here`, 모든 역할 멘션하기 — 키워드 역할을 멘션하는 데 필요합니다. 이 권한을 주기 싫으면 역할마다 "누구나 이 역할을 멘션할 수 있음"을 켜도 됩니다.
@@ -60,28 +90,38 @@ python src/channels.py          # 예시 글로 만든 메시지를 출력만
 python src/channels.py --send   # .env의 DISCORD_BOT_TOKEN, DISCORD_GUILD_ID로 예시 글 3건을 실제 채널에 게시
 ```
 
-## 명령어 (계획)
-
-| 명령어 | 동작 |
-|---|---|
-| `/구독 <키워드>` | 키워드 구독 (예: `/구독 보안`, `/구독 해커톤`) |
-| `/해지 <키워드>` | 구독 해지 |
-| `/목록` | 내 구독 목록 보기 |
-
 ## 구조
 
 ```
 bot/
 ├─ src/
-│  └─ bot.py
-└─ requirements.txt
+│  ├─ interactions.py   Lambda 진입점: 서명 검사 → 명령어 처리
+│  ├─ subscriptions.py  구독 저장(DynamoDB)과 답장 문구
+│  ├─ register.py       디스코드에 명령어 등록
+│  ├─ bot.py            Lambda 없이 내 컴퓨터에서 봇을 켜 두는 방식 (시험용)
+│  └─ requirements.txt  Lambda에 같이 넣을 패키지 (PyNaCl)
+├─ tests/               네트워크·AWS 없이 도는 테스트
+└─ requirements.txt     로컬 개발용
 ```
 
-## 로컬 실행
+요청이 디스코드에서 온 것인지는 [서명(Ed25519)](https://discord.com/developers/docs/interactions/overview#setting-up-an-endpoint-validating-security-request-headers)으로 확인합니다. 주소를 아는 누군가가 남의 사용자 ID로 구독을 바꾸는 요청을 보내도 서명이 없어 401로 거부됩니다.
 
-`.env`에 `DISCORD_BOT_TOKEN`을 넣은 뒤:
+## 테스트
 
 ```bash
+cd bot
 pip install -r requirements.txt
+pytest
+```
+
+웹·크롤러와 이어서 보는 테스트는 [tests/integration/](../tests/integration/)에 있습니다.
+
+## 내 컴퓨터에서 봇 켜기 (선택)
+
+Lambda를 배포하지 않고 명령어를 시험할 때만 씁니다. `.env`에 `DISCORD_BOT_TOKEN`, `SUBSCRIPTIONS_TABLE`(배포 Outputs의 `SubscriptionsTableName`)과 AWS 자격 증명이 필요합니다.
+
+```bash
 python src/bot.py
 ```
+
+개발자 포털에 Interactions Endpoint URL을 넣어 둔 상태에서는 명령어가 Lambda로만 가고 이 프로그램에는 오지 않습니다.

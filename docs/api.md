@@ -62,10 +62,10 @@ DynamoDB `SUBSCRIPTIONS_TABLE`에 한 줄이 "사용자 한 명 + 키워드 한 
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `userId` | string | 디스코드 사용자 ID를 **문자열로**. 봇에서는 `str(interaction.user.id)` |
+| `userId` | string | 디스코드 사용자 ID를 **문자열로** |
 | `keyword` | string | 1~30자. 앞뒤 공백 없이, 사이 공백은 한 칸 |
 
-한 사용자당 최대 20개.
+한 사용자당 최대 20개. 이 규칙은 웹(`api/src/me.py`)과 봇(`bot/src/subscriptions.py`)에 따로 적혀 있으니 바꿀 때는 둘 다 고칩니다 (다르면 `tests/integration`이 실패).
 
 ## /me/subscriptions (로그인 필요)
 
@@ -82,6 +82,14 @@ DynamoDB `SUBSCRIPTIONS_TABLE`에 한 줄이 "사용자 한 명 + 키워드 한 
 ```
 
 잘못된 요청은 `400`과 `{ "message": "..." }`.
+
+## POST /discord/interactions (디스코드 전용)
+
+디스코드가 봇 명령어(`/구독 <키워드>`, `/해지 <키워드>`, `/목록`)를 전달하는 주소입니다 (`bot/src/interactions.py`). 웹은 부르지 않습니다.
+
+- 로그인 토큰 대신 요청 헤더의 서명(`X-Signature-Ed25519`, `X-Signature-Timestamp`)을 앱의 Public Key로 검사합니다. 틀리면 `401`.
+- 명령어를 쓴 사람의 디스코드 ID로 위 Subscription 테이블을 읽고 씁니다. `/me/subscriptions`와 같은 목록입니다.
+- 답은 디스코드 형식(`{"type": 4, "data": {"content": "...", "flags": 64}}`)이고 쓴 사람에게만 보입니다.
 
 ## POST /chat (로그인 필요)
 

@@ -3,7 +3,7 @@
 컴퓨터 전공 학생을 위한 정보 모아보기 서비스.
 주요 대학 소식, 공모전·대회, 취업·인턴, 테크 트렌드(GitHub·최신기술·이슈)를 한곳에 모으고
 백엔드 / 프론트엔드 / AI / 데이터 / 클라우드 / 네트워크 / 보안 / 모바일 분야별로 걸러 볼 수 있게 합니다.
-새 글은 디스코드로도 알림을 받을 수 있게 할 예정입니다.
+새 글은 디스코드 서버 채널에 올라오고, 구독한 키워드가 들어간 글은 DM으로도 받습니다.
 
 클라우드 컴퓨팅 14조 · 권현무 · 서준원 · 안대희
 
@@ -14,9 +14,10 @@
 | [`web/`](web/) | 프론트엔드 (HTML/CSS/JS) | |
 | [`crawler/`](crawler/) | 공지·공모전·채용·트렌드 크롤러 (Python, AWS Lambda) | |
 | [`api/`](api/) | 웹이 쓰는 목록 API (`GET /items`, Lambda) | |
-| [`bot/`](bot/) | 디스코드 봇 (구독 명령어, DM 발송) | |
+| [`bot/`](bot/) | 디스코드 봇 명령어 `/구독` `/해지` `/목록` (Lambda) | |
 | [`infra/`](infra/) | AWS 설정 (SAM 템플릿, Learner Lab 배포 가이드) | |
 | [`docs/`](docs/) | API 명세, 데이터 형식, 회의록 | |
+| [`tests/integration/`](tests/integration/) | crawler·api·bot을 이어서 돌리는 통합 테스트 (AWS 계정 없이 실행) | |
 
 담당 칸은 팀에서 정해서 채워 주세요.
 
@@ -24,11 +25,15 @@
 
 ```
 EventBridge (주기 실행)
-   └─▶ crawler (Lambda) ──▶ DynamoDB / S3
-                               │
-              API Gateway ◀────┤
-                 └─▶ web       └─▶ bot (Discord DM)
+   └─▶ crawler (Lambda) ──▶ DynamoDB (글) ──▶ API Gateway ──▶ web
+            │                                     ▲
+            │   DynamoDB (구독) ◀── /me/subscriptions (web)
+            │        │         ◀── /구독 · /해지 · /목록 (bot Lambda ◀ 디스코드)
+            ▼        ▼
+       디스코드 채널 게시 · 구독자 DM
 ```
+
+전체를 이어서 확인하는 방법은 [infra/README.md](infra/README.md#배포-전에-aws-없이-전체-흐름-돌려-보기) 참고.
 
 ## 시작하기
 
