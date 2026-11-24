@@ -4,7 +4,7 @@
   const FIELD = Object.fromEntries(FIELDS.map((f) => [f.id, f]));
   const CAT_DESC = {
     all: '대학 소식, 공모전, 채용, 테크 트렌드를 한곳에서 봐요.',
-    univ: '전북대·충북대·경북대·부산대 학교 공지',
+    univ: `${SUBTYPES.univ.join('·')} 학교 공지`,
     contest: '해커톤, 공모전, 경진대회, CTF',
     jobs: '인턴, 신입 공채, 채용연계형 프로그램',
     tech: 'GitHub 트렌딩, 최신 기술, 개발 이슈',
@@ -23,7 +23,10 @@
     user: null,           // 로그인한 사용자 { name, method: 'discord' | 'email' }
     subs: null,           // 구독 키워드 목록 (불러오기 전에는 null)
     authMsg: '',          // 로그인·구독 관련 안내/오류 문구
+    mySchool: MySchool.get().school, // 내 학교: 학교 이름 | 'other' | ''
+    schoolMsg: '',        // 내 학교 저장 관련 안내
   };
+  const isSchool = (s) => SUBTYPES.univ.includes(s);
 
   // ── 날짜 유틸
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -45,16 +48,22 @@
     const h = location.hash.slice(1);
     const valid = ['all', 'saved', ...CATEGORIES.map((c) => c.id)];
     const next = valid.includes(h) ? h : 'all';
-    if (next !== state.view) state.subtype = null;
+    // 대학 소식 탭에 들어오면 내 학교 칩이 골라진 상태로 시작 (전체 칩을 누르면 모든 학교)
+    if (next !== state.view) state.subtype = next === 'univ' && isSchool(state.mySchool) ? state.mySchool : null;
     state.view = next;
   }
 
   // ── 필터링
+  // 내 학교를 정했으면 "전체" 탭·마감 임박·탭 숫자에서 다른 학교 공지를 뺍니다.
+  // ('other' = 목록에 없는 학교: 학교 공지를 모두 뺌. 대학 소식 탭과 북마크에서는 그대로 보임)
+  const otherSchool = (it) => it.category === 'univ' && Boolean(state.mySchool) && it.subtype !== state.mySchool;
+
   function filtered() {
     const q = state.q.trim().toLowerCase();
     let list = state.items.filter((it) => {
       if (state.view === 'saved') { if (!state.bookmarks.has(it.id)) return false; }
-      else if (state.view !== 'all' && it.category !== state.view) return false;
+      else if (state.view === 'all') { if (otherSchool(it)) return false; }
+      else if (it.category !== state.view) return false;
       if (state.subtype && it.subtype !== state.subtype) return false;
       if (state.fields.size && !it.fields.some((f) => state.fields.has(f))) return false;
       if (q && !`${it.title} ${it.source} ${it.subtype}`.toLowerCase().includes(q)) return false;
@@ -71,8 +80,9 @@
 
   // ── 렌더링
   function renderTabs() {
-    const counts = state.items.reduce((m, it) => ((m[it.category] = (m[it.category] || 0) + 1), m), {});
-    const tabs = [{ id: 'all', label: '전체', n: state.items.length }, ...CATEGORIES.map((c) => ({ ...c, n: counts[c.id] || 0 }))];
+    const mine = state.items.filter((it) => !otherSchool(it)); // 내 학교를 정했으면 다른 학교 공지는 세지 않음
+    const counts = mine.reduce((m, it) => ((m[it.category] = (m[it.category] || 0) + 1), m), {});
+    const tabs = [{ id: 'all', label: '전체', n: mine.length }, ...CATEGORIES.map((c) => ({ ...c, n: counts[c.id] || 0 }))];
     $('tabs').innerHTML = tabs.map((t) =>
       `<a class="tab" href="#${t.id}" style="--tab-color: var(--c-${t.id === 'all' ? 'univ' : t.id})" ${state.view === t.id ? 'aria-current="page"' : ''}>${t.label}<span class="n">${t.n}</span></a>`
     ).join('');
@@ -135,7 +145,7 @@
 
   function renderRail() {
     const upcoming = state.items
-      .filter((it) => it.deadline && daysLeft(it.deadline) >= 0)
+      .filter((it) => it.deadline && daysLeft(it.deadline) >= 0 && !otherSchool(it))
       .sort((a, b) => daysLeft(a.deadline) - daysLeft(b.deadline))
       .slice(0, 6);
     $('deadlineList').innerHTML = upcoming.map((it) => {
@@ -149,7 +159,17 @@
     ).join('');
   }
 
-  function render() { renderTabs(); renderFilters(); renderList(); renderRail(); }
+  // 피드 제목 아래 "내 학교" 한 줄
+  function renderSchoolLine() {
+    const s = state.mySchool;
+    const text = isSchool(s) ? `<b>내 학교: ${esc(s)}</b> · 대학 소식은 ${esc(s)} 공지만 보여요`
+      : s === 'other' ? '<b>내 학교: 목록에 없음</b> · 전체 탭에서는 학교 공지를 빼고 보여요'
+      : '내 학교를 정하면 우리 학교 공지만 모아 볼 수 있어요';
+    const msg = state.schoolMsg ? ` <span class="school-msg">${esc(state.schoolMsg)}</span>` : '';
+    $('schoolLine').innerHTML = `${text} <button type="button" class="auth-link" data-open-school>${s ? '바꾸기' : '학교 고르기'}</button>${msg}`;
+  }
+
+  function render() { renderTabs(); renderFilters(); renderList(); renderRail(); renderSchoolLine(); }
 
   // ── 로그인 · 키워드 구독
   const NOT_CONFIGURED = '로그인이 아직 연결되지 않았어요. 배포한 뒤 js/api.js에 API_BASE, AUTH_BASE, AUTH_CLIENT_ID를 넣어 주세요.';
@@ -201,7 +221,63 @@
   }
 
   // 로그인 상태가 바뀌었음을 다른 화면(챗봇 등)에 알립니다.
-  function authChanged() { window.dispatchEvent(new Event('csradar:auth')); }
+  function authChanged() { window.dispatchEvent(new Event('csradar:auth')); syncSchool(); }
+
+  // ── 내 학교
+  // 브라우저에 저장하고, 로그인했으면 서버(/me/profile)에도 저장합니다.
+  function applySchool(school, requested = '', sync = true) {
+    MySchool.set(school, requested);
+    state.mySchool = school;
+    state.schoolMsg = '';
+    if (state.view === 'univ') state.subtype = isSchool(school) ? school : null;
+    render();
+    if (sync && state.user && Auth.configured) {
+      Api.saveProfile({ school: school || null, requestedSchool: requested || null })
+        .catch(() => { state.schoolMsg = '서버에 저장하지 못했어요. 이 브라우저에는 저장됐어요.'; renderSchoolLine(); });
+    }
+  }
+
+  // 로그인하면 서버 설정과 맞춥니다: 서버에 있으면 서버 값을 쓰고, 없으면 이 브라우저 값을 올립니다.
+  function syncSchool() {
+    if (!state.user || !Auth.configured) return;
+    Api.getProfile()
+      .then((p) => {
+        if (p.school) { applySchool(p.school, p.requestedSchool || '', false); return; }
+        const local = MySchool.get();
+        if (local.school) Api.saveProfile({ school: local.school, requestedSchool: local.requestedSchool || null }).catch(() => {});
+        else if (!local.asked) openSchool();
+      })
+      .catch(() => { /* 서버에 못 가도 브라우저 설정으로 계속 */ });
+  }
+
+  function openSchool() {
+    const dialog = $('schoolDialog');
+    if (dialog.open || $('authDialog').open) return;
+    const cur = MySchool.get();
+    dialog.innerHTML = `<div class="auth-head">
+        <h2 id="schoolTitle">어느 학교 학생이세요?</h2>
+        <button type="button" class="auth-close" data-school-close aria-label="닫기">×</button>
+      </div>
+      <p class="school-intro">대학 소식에서 우리 학교 공지만 모아 보여 드려요. 공모전·채용·테크 글은 그대로 다 보여요.</p>
+      <div class="school-options" role="group" aria-label="학교">${SUBTYPES.univ.map((s) =>
+        `<button type="button" class="school-option" data-school="${esc(s)}" aria-pressed="${cur.school === s}">${esc(s)}</button>`).join('')}</div>
+      <div class="auth-or"><span>목록에 없나요?</span></div>
+      <form class="auth-form" data-school-other>
+        <label class="auth-field"><span>다니는 학교 (선택, 추가할 때 참고할게요)</span>
+          <input name="requested" type="text" maxlength="30" placeholder="예: 서울대" autocomplete="organization" value="${esc(cur.requestedSchool)}"></label>
+        <button type="submit" class="auth-submit secondary" aria-pressed="${cur.school === 'other'}">목록에 없는 학교로 설정</button>
+      </form>
+      <p class="auth-switch">${cur.school
+        ? '<button type="button" class="auth-link" data-school="">학교 설정 지우기</button>'
+        : '<button type="button" class="auth-link" data-school-close>나중에 할게요</button>'}</p>`;
+    dialog.showModal();
+    const picked = dialog.querySelector('[aria-pressed="true"]') || dialog.querySelector('.school-option');
+    if (picked) picked.focus();
+  }
+
+  // 고르지 않고 닫아도 다시 묻지 않음
+  $('schoolDialog').addEventListener('close', () => { if (!MySchool.get().asked) MySchool.skip(); });
+  $('schoolDialog').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
   // ── 로그인 · 회원가입 창 (이메일)
   // 단계: login → (signup → confirm) | (forgot → reset). 비밀번호는 가입 직후 자동 로그인용으로 창이 열려 있는 동안만 기억합니다.
@@ -341,6 +417,10 @@
     if (field) { const f = field.dataset.field; state.fields.has(f) ? state.fields.delete(f) : state.fields.add(f); renderFilters(); renderList(); return; }
     const bm = e.target.closest('[data-bm]');
     if (bm) { state.bookmarks = Bookmarks.toggle(bm.dataset.bm); renderTabs(); renderList(); return; }
+    if (e.target.closest('[data-open-school]')) { openSchool(); return; }
+    const school = e.target.closest('[data-school]');
+    if (school) { $('schoolDialog').close(); applySchool(school.dataset.school); return; }
+    if (e.target.closest('[data-school-close]')) { $('schoolDialog').close(); return; }
     if (e.target.closest('[data-open-login]')) { openAuth(); return; }
     if (e.target.closest('[data-login-discord]')) {
       if (Auth.configured) { Auth.login(); return; }
@@ -370,6 +450,12 @@
   });
   document.addEventListener('submit', (e) => {
     if (e.target.dataset.authForm) { e.preventDefault(); submitAuth(e.target); return; }
+    if ('schoolOther' in e.target.dataset) {
+      e.preventDefault();
+      $('schoolDialog').close();
+      applySchool('other', e.target.requested.value.trim());
+      return;
+    }
     if (e.target.id !== 'subsForm') return;
     e.preventDefault();
     const keyword = $('subsInput').value.trim();
@@ -404,8 +490,11 @@
       state.user = Auth.user();
       renderAuth();
       if (state.user && state.user.method === 'discord') syncSubs(Api.listSubscriptions());
-      authChanged();
+      authChanged();                         // 로그인했으면 여기서 내 학교도 서버와 맞춤
+      // 처음 온 사람(로그인 안 함)에게 한 번만 학교를 물어봄
+      if (!state.user && !MySchool.get().asked) openSchool();
     });
+  renderSchoolLine();
   Api.listItems()
     .then((items) => { state.items = items; render(); })
     .catch((err) => {

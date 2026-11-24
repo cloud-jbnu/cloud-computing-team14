@@ -102,7 +102,7 @@
     messages.push({ role: 'user', text });
     busy = true;
     render();
-    Api.chat(text, history)
+    Api.chat(text, history, MySchool.forChat())
       .then((res) => {
         messages.push({ role: 'model', text: res.answer, items: res.items || [], web: res.web || null, notice: res.notice || '' });
         if (typeof res.remaining === 'number') remaining = res.remaining;

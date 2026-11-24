@@ -195,7 +195,7 @@ def test_template_matches_code():
     """template.yaml의 Lambda마다 CodeUri·Handler가 실제 파일·함수를 가리키고, 묶음에 넣을 패키지 목록이 있다."""
     template = harness.load_template()
     functions = {name: r["Properties"] for name, r in template["Resources"].items() if r["Type"] == "AWS::Serverless::Function"}
-    assert set(functions) == {"CrawlerFunction", "ItemsApiFunction", "MeApiFunction", "ChatApiFunction", "BotFunction"}
+    assert set(functions) == {"CrawlerFunction", "ItemsApiFunction", "MeApiFunction", "ProfileApiFunction", "ChatApiFunction", "BotFunction"}
     for name, props in functions.items():
         code = (harness.TEMPLATE.parent / props["CodeUri"]).resolve()
         module, function = props["Handler"].split(".")

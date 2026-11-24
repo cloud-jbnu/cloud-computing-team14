@@ -73,6 +73,7 @@ Globals:
         ITEMS_TABLE: !Ref ItemsTable
         SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
         SEEN_TABLE: !Ref SeenTable
+        PROFILES_TABLE: !Ref ProfilesTable
         RAW_BUCKET: !Ref RawBucket
   HttpApi:
     CorsConfiguration:
@@ -135,6 +136,15 @@ Resources:
       TimeToLiveSpecification:                 # expiresAt(초 단위 시각)이 지난 키는 DynamoDB가 지웁니다
         AttributeName: expiresAt
         Enabled: true
+
+  ProfilesTable:
+    Type: AWS::DynamoDB::Table                 # 사용자 "내 학교" 설정 (api/src/user_profile.py). 크롤러 notify.py도 읽음
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: userId, AttributeType: S }   # Cognito sub
+      KeySchema:
+        - { AttributeName: userId, KeyType: HASH }
 
   ChatUsageTable:
     Type: AWS::DynamoDB::Table                 # 챗봇 하루 사용량 (api/src/chat.py). 키: "<sub>#<날짜>"(질문), "<sub>#<날짜>#search", "global#<날짜>#search"(웹 검색)
@@ -308,6 +318,28 @@ Resources:
             Path: /discord/interactions
             Method: POST
 
+  # ── 내 학교 설정: /me/profile (로그인 필요) ────────────
+  ProfileApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-profile-api"
+      CodeUri: ../api/src
+      Handler: user_profile.lambda_handler
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Events:
+        GetProfile:
+          Type: HttpApi
+          Properties:
+            Path: /me/profile
+            Method: GET
+            Auth: { Authorizer: CognitoAuth }
+        PutProfile:
+          Type: HttpApi
+          Properties:
+            Path: /me/profile
+            Method: PUT
+            Auth: { Authorizer: CognitoAuth }
+
   # ── 챗봇: POST /chat (로그인 필요) ─────────────────────
   ChatApiFunction:
     Type: AWS::Serverless::Function
@@ -357,5 +389,7 @@ Outputs:
     Value: !Ref SeenTable
   ChatUsageTableName:
     Value: !Ref ChatUsageTable
+  ProfilesTableName:
+    Value: !Ref ProfilesTable
   RawBucketName:
     Value: !Ref RawBucket

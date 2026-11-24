@@ -1,6 +1,7 @@
 """POST /chat — 수집한 글을 찾아 주는 챗봇 (Gemini). 로그인한 사용자만 씁니다.
 
-  요청  {"message": "이번 주 마감인 AI 해커톤 있어?", "history": [{"role": "user"|"model", "text": "..."}]}
+  요청  {"message": "이번 주 마감인 AI 해커톤 있어?", "history": [{"role": "user"|"model", "text": "..."}], "school": "전북대"}
+        school(선택)은 웹의 "내 학교" 설정. 학교를 말하지 않은 학교 공지 질문에서 그 학교 글을 고릅니다.
   응답  {"answer": "...", "items": [Item, ...], "web": null | {...}, "notice": null | "...", "remaining": 오늘 남은 질문 수}
         web = {"answer": "...", "sources": [{"title", "url"}], "suggestionsHtml": "..."}  (웹 검색을 했을 때만)
 
@@ -28,6 +29,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+from schools import SCHOOLS
+
 API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 DEFAULT_MODEL = "gemini-flash-lite-latest"
 KST = timezone(timedelta(hours=9))
@@ -52,7 +55,8 @@ SYSTEM_PROMPT = """너는 "컴공레이더"의 안내 챗봇이다. 컴퓨터 �
 입력의 "글 목록"은 JSON 배열이고 각 원소는 글 하나다.
   id, category(univ 대학 소식 / contest 공모전·대회 / jobs 취업·인턴 / tech 테크 트렌드), subtype(학교·대회 종류·채용 형태 등),
   source(출처), title(제목), date(게시일), deadline(마감일, 있을 때만), fields(분야 태그), summary(AI 요약, 있을 때만)
-글 목록에 있는 학교는 전북대·충북대·경북대·부산대뿐이다.
+글 목록에 있는 학교는 {schools}뿐이다.
+{my_school}
 
 규칙
 - 글 목록에 있는 내용만으로 답한다. 목록에 없는 대회·공고·날짜·조건을 지어내지 않는다.
@@ -312,12 +316,24 @@ def _history_contents(history):
 
 
 # 1단계: 모아 둔 글에서 찾기
-def build_payload(message, history, items, today):
+def my_school_line(school):
+    if school in SCHOOLS:
+        return (f"질문한 학생은 {school} 학생이다. 학교 공지를 물으면서 학교를 말하지 않으면 {school} 글을 고르고, "
+                "다른 학교 글은 그 학교를 물었을 때만 고른다.")
+    return "질문한 학생의 학교는 모른다."
+
+
+def clean_school(raw):
+    return raw if raw in SCHOOLS else None
+
+
+def build_payload(message, history, items, today, school=None):
     catalog = json.dumps([compact(it) for it in items], ensure_ascii=False, default=_json_default)
     contents = _history_contents(history)
     contents.append({"role": "user", "parts": [{"text": f"글 목록:\n{catalog}\n\n질문: {message}"}]})
     return {
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT.format(today=today)}]},
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT.format(
+            today=today, schools="·".join(SCHOOLS), my_school=my_school_line(school))}]},
         "contents": contents,
         "generationConfig": {
             "temperature": 0.3,
@@ -339,11 +355,11 @@ def parse_answer(data):
     return result
 
 
-def answer(message, history, items, api_key, model, today=None, post=None, timeout=20, retry=True):
+def answer(message, history, items, api_key, model, today=None, post=None, timeout=20, retry=True, school=None):
     """모아 둔 글로 답합니다. {"answer", "items", "need_web_search"}"""
     today = today or today_kst()
     candidates = open_items(items, today)
-    data = call_gemini(build_payload(message, history, candidates, today), api_key, model, post, timeout, retry)
+    data = call_gemini(build_payload(message, history, candidates, today, school), api_key, model, post, timeout, retry)
     result = parse_answer(data)
     return {
         "answer": result["answer"].strip(),
@@ -409,6 +425,7 @@ def lambda_handler(event, context):
     if not message:
         return _response(400, {"message": f"질문은 1~{MAX_MESSAGE}자로 적어 주세요."})
     history = clean_history(data.get("history"))
+    school = clean_school(data.get("school"))  # 웹의 "내 학교" 설정 (없거나 모르는 값이면 None)
 
     import boto3
     db = boto3.resource("dynamodb")
@@ -426,7 +443,7 @@ def lambda_handler(event, context):
     try:
         items = load_items(db.Table(os.environ["ITEMS_TABLE"]))
         result = answer(message, history, items, api_key, model, today,
-                        timeout=min(15, left()), retry=left() > 20)
+                        timeout=min(15, left()), retry=left() > 20, school=school)
     except ChatError as e:
         print(f"챗봇 응답 실패: {e}")
         return _response(502, {"message": "답을 만들지 못했어요. 잠시 후 다시 물어봐 주세요."})

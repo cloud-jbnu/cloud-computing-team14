@@ -109,6 +109,8 @@ crawler/
 3. 실제 응답에서 필요한 부분만 잘라 `tests/fixtures/`에 넣고 파서 테스트를 씁니다.
 4. `handler.py`의 `SOURCES`에 등록합니다.
 
+**학교를 추가할 때**는 위 순서에 더해 학교 이름을 세 곳에 같이 넣습니다: [`src/common/item.py`](src/common/item.py)의 `SCHOOLS`, `web/js/data.js`의 `SUBTYPES.univ`, `api/src/schools.py`의 `SCHOOLS` (웹의 "내 학교" 목록과 챗봇이 씁니다). 수집기 파일의 `SCHOOL`과 이름이 같아야 하며, 어긋나면 `tests/test_constants.py`가 실패합니다. 디스코드 서버에 학교 이름으로 채널도 만듭니다.
+
 분야나 카테고리를 추가·변경할 때는 `src/common/item.py`와 함께 `web/js/data.js`, `api/src/items.py`, `docs/api.md`, 요약 프롬프트(`src/summarize.py`)의 기준도 고칩니다. 하나라도 빠지면 `tests/test_constants.py`가 실패합니다.
 
 ## 로컬 실행
@@ -133,4 +135,5 @@ DB가 없어서 "이미 있음"은 항상 0이고, 이번에 모은 글끼리만
 
 - **서버 채널 게시**: 채널 이름과 키워드 역할 준비는 [bot/README.md](../bot/README.md) 참고. `DISCORD_BOT_TOKEN`과 `DISCORD_GUILD_ID`가 둘 다 있어야 켜집니다.
 - **구독 DM**: 웹이나 봇 명령어(`/구독`)로 등록한 키워드가 글의 `title`·`source`·`subtype`에 들어 있으면 그 사용자에게 DM을 보냅니다. 봇과 같은 서버에 있는 사용자에게만 보낼 수 있습니다.
+  - 웹에서 "내 학교"를 정한 사용자(`PROFILES_TABLE`)는 학교 공지 중 **내 학교 글만** 받습니다. "목록에 없는 학교"로 정했으면 학교 공지는 받지 않고, 학교를 정하지 않았으면 예전처럼 모든 학교 공지를 받습니다. 학교 설정을 못 읽으면 예전처럼 보냅니다.
 - 둘 다 게시일이 3일(`notify.MAX_AGE_DAYS`)보다 오래된 글은 보내지 않습니다. 처음 배포했을 때 예전 글로 알림이 쏟아지는 걸 막습니다.

@@ -14,6 +14,9 @@ KST = timezone(timedelta(hours=9))
 # 어긋나면 tests/test_constants.py가 실패합니다.
 CATEGORIES = ["univ", "contest", "jobs", "tech"]
 FIELDS = ["backend", "frontend", "ai", "data", "cloud", "network", "security", "mobile"]
+# 공지를 모으는 학교 (category가 univ인 글의 subtype). 학교 수집기(sources/univ_*.py)의 SCHOOL과 같아야 하고,
+# 웹(web/js/data.js의 SUBTYPES.univ)과 API(api/src/schools.py)에도 같은 목록이 있습니다.
+SCHOOLS = ["전북대", "충북대", "경북대", "부산대"]
 
 
 def today():
