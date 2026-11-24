@@ -41,13 +41,23 @@ window.Api = {
     return authedFetch(`/me/subscriptions?keyword=${encodeURIComponent(keyword)}`, { method: 'DELETE' });
   },
 
-  // 챗봇 (로그인 필요). history = [{ role: 'user' | 'model', text }]
-  // → { answer, items: [Item, ...], remaining: 오늘 남은 질문 수 }
-  chat(message, history) {
+  // 챗봇 (로그인 필요). history = [{ role: 'user' | 'model', text }], school = 내 학교(없으면 null)
+  // → { answer, items: [Item, ...], web, notice, remaining: 오늘 남은 질문 수 }
+  chat(message, history, school) {
     return authedFetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({ message, history, school: school || null }),
+    });
+  },
+
+  // 내 학교 설정 (로그인 필요). 둘 다 { school: '전북대' | 'other' | null, requestedSchool }
+  getProfile() { return authedFetch('/me/profile'); },
+  saveProfile(profile) {
+    return authedFetch('/me/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile),
     });
   },
 
@@ -58,6 +68,27 @@ window.Api = {
     const body = await res.json();
     return body.items || [];
   },
+};
+
+// 내 학교: 로그인 없이도 쓰도록 브라우저에 저장하고, 로그인하면 서버(/me/profile)와 맞춥니다 (app.js).
+// 값: SUBTYPES.univ의 학교 이름 | 'other'(목록에 없는 학교) | ''(정하지 않음)
+window.MySchool = {
+  KEY: 'csradar.school',
+  get() {
+    try {
+      const s = JSON.parse(localStorage.getItem(this.KEY) || '{}');
+      const ok = s.school === 'other' || SUBTYPES.univ.includes(s.school);
+      return { school: ok ? s.school : '', requestedSchool: ok && s.school === 'other' ? s.requestedSchool || '' : '', asked: Boolean(s.asked) };
+    } catch { return { school: '', requestedSchool: '', asked: false }; }
+  },
+  set(school, requestedSchool = '') {
+    try { localStorage.setItem(this.KEY, JSON.stringify({ school, requestedSchool: school === 'other' ? requestedSchool : '', asked: true })); }
+    catch { /* 저장 불가 환경 */ }
+  },
+  // 고르지 않고 "나중에"를 눌렀을 때: 다시 묻지 않도록 표시만
+  skip() { const s = this.get(); this.set(s.school, s.requestedSchool); },
+  // 챗봇에 보낼 학교: 목록에 있는 학교일 때만
+  forChat() { const s = this.get().school; return SUBTYPES.univ.includes(s) ? s : null; },
 };
 
 // 북마크는 로그인 없이 쓰도록 브라우저에만 저장합니다.
