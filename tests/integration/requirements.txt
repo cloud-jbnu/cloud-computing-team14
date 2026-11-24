@@ -1,0 +1,5 @@
+# Integration tests: crawler + api + bot together on a fake AWS (moto). ASCII-only, like the other requirements files.
+-r ../../crawler/requirements.txt
+PyNaCl>=1.5
+moto[dynamodb]>=5.0
+PyYAML>=6.0

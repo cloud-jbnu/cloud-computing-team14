@@ -17,6 +17,7 @@ AWS 리소스는 전부 [`template.yaml`](template.yaml)(AWS SAM) 하나로 관�
 | Cognito User Pool | `csradar-users` | 로그인. 디스코드(OIDC) 로그인 + 이메일 회원가입 (인증 메일은 Cognito 기본 발신, 하루 50통) |
 | Cognito 도메인 | `csradar-<계정ID>.auth.us-east-1.amazoncognito.com` | 로그인 주소 |
 | Lambda + HTTP API | `csradar-me-api` | 로그인한 사용자의 키워드 구독 `/me/subscriptions` (JWT Authorizer로 토큰 검사) |
+| Lambda + HTTP API | `csradar-bot` | 디스코드 명령어 `/구독` `/해지` `/목록` (`POST /discord/interactions`). 로그인 대신 디스코드 서명을 검사하고, 웹과 같은 구독 테이블을 씀. `DiscordPublicKey`가 없으면 401 |
 | Lambda + HTTP API | `csradar-profile-api` | "내 학교" 설정 `/me/profile` (로그인 필요) |
 | DynamoDB | `csradar-ProfilesTable-…` | 사용자별 내 학교. PK `userId`(Cognito sub). 크롤러가 학교 공지 DM을 거를 때도 읽음 |
 | Lambda + HTTP API | `csradar-chat-api` | 챗봇 `POST /chat` (로그인 필요). 모아 둔 글에서 골라 Gemini로 답하고, 없으면 Google 검색으로 찾음. `GeminiApiKey`가 없으면 503 |
@@ -61,12 +62,13 @@ AWS 리소스는 전부 [`template.yaml`](template.yaml)(AWS SAM) 하나로 관�
 ```bash
 cd infra
 sam build
-sam deploy --parameter-overrides DiscordClientId=<Client ID> DiscordClientSecret=<Client Secret> DiscordBotToken=<Bot Token> DiscordGuildId=<서버 ID> GeminiApiKey=<Gemini 키>
+sam deploy --parameter-overrides DiscordClientId=<Client ID> DiscordClientSecret=<Client Secret> DiscordBotToken=<Bot Token> DiscordGuildId=<서버 ID> DiscordPublicKey=<Public Key> GeminiApiKey=<Gemini 키>
 ```
 
 - `DiscordClientId`, `DiscordClientSecret`은 기본값이 없어서 배포할 때마다 넘겨야 합니다.
 - `DiscordBotToken`(개발자 포털 → **Bot → Token**)은 새 글 DM 알림과 서버 채널 게시에 씁니다. 빼면 둘 다 꺼지고 저장만 합니다.
 - `DiscordGuildId`는 새 글을 올릴 디스코드 서버 ID입니다. 빼면 채널 게시만 꺼집니다. 채널·역할 준비는 [bot/README.md](../bot/README.md) 참고.
+- `DiscordPublicKey`(개발자 포털 → **General Information → Public Key**)는 봇 명령어 요청이 디스코드에서 온 것인지 검사하는 데 씁니다. 빼면 명령어만 꺼집니다. 배포 뒤 주소 등록과 명령어 등록은 [bot/README.md](../bot/README.md) 참고.
 - `GeminiApiKey`([Google AI Studio](https://aistudio.google.com)에서 발급)는 새 글 AI 요약과 챗봇에 씁니다. 빼면 요약 없이 저장하고 챗봇은 꺼집니다. 모델을 바꾸려면 `GeminiModel=<모델 이름>`도 넘깁니다 (기본 `gemini-flash-lite-latest`).
 - 챗봇 웹 검색(Google 검색) 한도: `ChatSearchPerUser`(사용자당 하루, 기본 5), `ChatSearchPerDay`(사이트 전체 하루, 기본 100). 둘 중 하나를 `0`으로 넘기면 웹 검색을 끕니다.
   - Gemini 3 이후 모델은 검색 한 번마다 요금이 붙고, 무료 요금제 키에서는 검색이 안 될 수 있습니다. 배포 전에 [Gemini 가격 페이지](https://ai.google.dev/gemini-api/docs/pricing)에서 "Grounding with Google Search" 한도를 확인하고 `ChatSearchPerDay`를 그보다 낮게 잡아 주세요.
@@ -83,6 +85,7 @@ sam deploy --parameter-overrides DiscordClientId=<Client ID> DiscordClientSecret
 | `AuthUrl` | `AUTH_BASE` |
 | `AuthClientId` | `AUTH_CLIENT_ID` |
 | `DiscordRedirectUri` | 디스코드 개발자 포털 → OAuth2 → Redirects |
+| `DiscordInteractionsUrl` | 디스코드 개발자 포털 → General Information → Interactions Endpoint URL |
 
 ## 확인
 
@@ -111,7 +114,7 @@ curl "<ApiUrl>/items"
 - 이렇게 **밀린 글은 저장과 요약만 하고 채널 게시와 키워드 DM은 보내지 않습니다.** 게시일이 없는 사이트(점핏 등)는 몇 주 된 글도 수집한 날짜가 되어, 그대로 알리면 오래된 글이 한꺼번에 쏟아지기 때문입니다. 배포한 뒤 새로 올라온 글은 처음부터 평소처럼 알립니다.
 - 나중에 새 사이트를 붙여도 그 사이트의 밀린 글은 같은 방식으로 조용히 저장됩니다.
 - 바로 한 번 더 실행했을 때 같은 글이 다시 저장되거나 채널에 또 올라오지 않으면 중복 제거가 동작하는 것입니다.
-- 채널 게시를 테스트하려고 밀린 글도 다시 알리고 싶다면, ItemsTable에서 해당 글과 SeenTable의 `source#사이트` 항목을 지우고 다시 실행합니다.
+- 채널 게시를 테스트하려고 밀린 글도 다시 알리고 싶다면, ItemsTable에서 해당 글을 지우고 SeenTable `source#사이트` 항목의 `backlogIds`에서 그 글의 id를 뺀 뒤 다시 실행합니다. (`source#사이트` 항목을 통째로 지우면 그 사이트를 처음 보는 것으로 되어 다시 조용히 저장만 합니다.) 게시일이 3일 넘게 지난 글은 이렇게 해도 알리지 않습니다.
 
 로그인 확인: 웹(`http://localhost:8765`)에서 **로그인** → **디스코드로 로그인** → 디스코드 승인 → 오른쪽 "키워드 알림"에 키워드를 추가해 봅니다.
 이메일 가입은 **로그인** → **이메일로 회원가입** → 메일로 온 6자리 코드 입력 → 자동 로그인까지 되는지 봅니다. 이메일 사용자는 "키워드 알림"에 디스코드 안내만 보이면 맞습니다.
@@ -128,6 +131,24 @@ curl -i "<ApiUrl>/me/subscriptions"
 
 처음 로그인했을 때 `GET /me/subscriptions` 응답의 `userId`가 내 디스코드 사용자 ID(디스코드에서 프로필 우클릭 → ID 복사)와 같은지 확인해 주세요. 봇과 같은 구독 목록을 쓰려면 이 값이 같아야 합니다.
 
+봇 명령어 확인: 서명 없이 부르면 401이 나와야 합니다. 그다음 디스코드에서 `/구독 해커톤` → `/목록`을 써 보고, 웹의 "키워드 알림"에 같은 키워드가 보이면 됩니다. 답이 없으면("애플리케이션이 응답하지 않았어요") CloudWatch 로그 그룹 `/aws/lambda/csradar-bot`를 봅니다.
+
+```bash
+curl -i -X POST "<ApiUrl>/discord/interactions" -d "{}"
+```
+
+## 배포 전에: AWS 없이 전체 흐름 돌려 보기
+
+랩을 켜지 않아도 크롤러 → 저장 → 목록 API → 구독(봇·웹) → 채널 게시·DM을 이어서 확인할 수 있습니다. DynamoDB는 이 템플릿의 테이블 정의대로 가짜(moto)로 만들고, 디스코드도 가짜가 받아 메시지 한도를 검사합니다.
+
+```bash
+pip install -r tests/integration/requirements.txt
+pytest tests/integration                  # 정해 둔 글로 (네트워크 없음)
+python tests/integration/run_live.py      # 실제 사이트에서 수집한 글로 한 번
+```
+
+템플릿의 테이블 키·환경변수 이름·Lambda 경로를 바꿨다면 배포 전에 한 번 돌려 주세요.
+
 ## 정리 (크레딧 아끼기)
 
 DynamoDB(온디맨드), Lambda, HTTP API는 안 쓰면 거의 비용이 없습니다.
@@ -139,5 +160,4 @@ sam delete
 
 ## 아직 안 한 것
 
-- 디스코드 봇 명령어(`/구독` 등)를 Interactions Endpoint(Lambda + HTTP API)로 옮겨 구독 테이블을 쓰게 하기 — 지금은 봇 메모리에만 있어서 웹에서 넣은 구독과 합쳐지지 않습니다. 구독 관리는 웹에서, 새 글 DM은 크롤러에서 이미 됩니다
 - 디스코드 토큰은 SSM Parameter Store에 넣고 Lambda가 읽게 할 예정
