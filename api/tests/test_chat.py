@@ -107,6 +107,22 @@ def test_answer_sends_only_open_items_and_returns_cards():
     assert "tools" not in call["payload"]  # 1단계는 검색하지 않음
 
 
+def test_prompt_lists_schools_and_users_school():
+    payload = chat.build_payload("장학금 공지 있어?", [], ITEMS, TODAY, school="전북대")
+    prompt = payload["systemInstruction"]["parts"][0]["text"]
+    assert "·".join(chat.SCHOOLS) in prompt
+    assert "전북대 학생이다" in prompt
+    assert "학교는 모른다" in chat.build_payload("q", [], ITEMS, TODAY)["systemInstruction"]["parts"][0]["text"]
+    assert chat.clean_school("전북대") == "전북대"
+    assert chat.clean_school("하버드대") is None and chat.clean_school(None) is None
+
+
+def test_handler_passes_school_to_prompt(handler_env):
+    post = handler_env(gemini_text({"answer": "있어요.", "item_ids": ["u1"], "need_web_search": False}))
+    call({"message": "장학금 공지 있어?", "school": "전북대"})
+    assert "전북대 학생이다" in post.calls[0]["payload"]["systemInstruction"]["parts"][0]["text"]
+
+
 def test_need_web_search_must_be_true_exactly():
     post = fake_post(gemini_text({"answer": "없어요", "item_ids": [], "need_web_search": "true"}))
     assert chat.answer("하버드", [], ITEMS, "K", "m", today=TODAY, post=post)["need_web_search"] is False

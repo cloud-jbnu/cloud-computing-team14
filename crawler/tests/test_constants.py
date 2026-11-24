@@ -9,8 +9,8 @@ from pathlib import Path
 import channels
 import notify
 import summarize
-from common.item import CATEGORIES, FIELDS
-from sources import dev_event, jumpit
+from common.item import CATEGORIES, FIELDS, SCHOOLS
+from sources import dev_event, jumpit, univ_cbnu, univ_jbnu, univ_knu, univ_pnu
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -57,6 +57,15 @@ def test_category_settings_cover_every_category():
 def test_source_tags_map_to_known_fields():
     assert set(dev_event.FIELD_TAGS.values()) <= set(FIELDS)
     assert {field for _, field in jumpit.FIELD_KEYWORDS} <= set(FIELDS)
+
+
+def test_schools_match_everywhere():
+    """학교를 추가할 때 수집기·웹·API(내 학교 설정, 챗봇)가 같은 목록을 쓰는지."""
+    assert sorted(m.SCHOOL for m in (univ_jbnu, univ_cbnu, univ_knu, univ_pnu)) == sorted(SCHOOLS)
+    web = re.search(r"univ:\s*\[([^\]]*)\]", read("web/js/data.js"))
+    assert re.findall(r"'([^']+)'", web[1]) == SCHOOLS
+    api = re.search(r"^SCHOOLS\s*=\s*\[([^\]]*)\]", read("api/src/schools.py"), re.M)
+    assert re.findall(r'"([^"]+)"', api[1]) == SCHOOLS
 
 
 def test_prompt_defines_every_field():
