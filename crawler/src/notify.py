@@ -5,7 +5,9 @@ crawler가 새로 저장한 글을 받아, 키워드를 구독한 사용자에�
 
   1. 구독 테이블(SUBSCRIPTIONS_TABLE)을 읽어 키워드 → 사용자 목록을 만듭니다.
   2. 새 글의 제목·출처·구분(subtype)에 키워드가 들어 있으면 (대소문자 무시) 그 사용자에게 보낼 글로 모읍니다.
-  3. 사용자마다 DM 한 통으로 묶어 보냅니다.
+  3. 웹에서 "내 학교"를 정한 사용자(PROFILES_TABLE에 discordId가 있는 줄)는 학교 공지 중 내 학교 글만 받습니다.
+     학교를 정하지 않은 사용자는 예전처럼 모든 학교 공지를 받습니다.
+  4. 사용자마다 DM 한 통으로 묶어 보냅니다.
 
 주의
   - 봇과 같은 서버에 있는 사용자에게만 DM을 보낼 수 있습니다. 못 보내면 로그만 남기고 넘어갑니다.
@@ -39,6 +41,31 @@ def load_subscriptions(table):
         if "LastEvaluatedKey" not in res:
             return subs
         kwargs["ExclusiveStartKey"] = res["LastEvaluatedKey"]
+
+
+def load_schools(table):
+    """{디스코드 사용자 ID: 내 학교} — 웹에서 학교를 정한 디스코드 사용자만. "other"(목록에 없는 학교)도 그대로 둡니다."""
+    schools, kwargs = {}, {"ProjectionExpression": "discordId, school"}
+    while True:
+        res = table.scan(**kwargs)
+        for row in res["Items"]:
+            if row.get("discordId") and row.get("school"):
+                schools[str(row["discordId"])] = row["school"]
+        if "LastEvaluatedKey" not in res:
+            return schools
+        kwargs["ExclusiveStartKey"] = res["LastEvaluatedKey"]
+
+
+def only_my_school(targets, schools):
+    """학교를 정한 사용자에게서 다른 학교 공지를 뺍니다. 남는 글이 없는 사용자는 목록에서 빠집니다."""
+    result = {}
+    for user, matches in targets.items():
+        school = schools.get(user)
+        if school:
+            matches = [(it, kws) for it, kws in matches if it.get("category") != "univ" or it.get("subtype") == school]
+        if matches:
+            result[user] = matches
+    return result
 
 
 def is_recent(item, today=None):
@@ -124,7 +151,7 @@ def send_dm(session, token, user_id, content):
 
 
 # ── 진입점 ─────────────────────────────────────────────────────
-def notify(new_items, table=None, token=None, session=None):
+def notify(new_items, table=None, token=None, session=None, profiles_table=None):
     """새로 저장된 글로 DM을 보내고 {"users", "sent", "failed"} 개수를 돌려줍니다."""
     stats = {"users": 0, "sent": 0, "failed": 0}
     token = token if token is not None else os.environ.get("DISCORD_BOT_TOKEN", "")
@@ -140,6 +167,15 @@ def notify(new_items, table=None, token=None, session=None):
         import boto3
         table = boto3.resource("dynamodb").Table(os.environ["SUBSCRIPTIONS_TABLE"])
     targets = match(recent, load_subscriptions(table))
+    if targets and any(it.get("category") == "univ" for it in recent):
+        try:
+            if profiles_table is None and os.environ.get("PROFILES_TABLE"):
+                import boto3
+                profiles_table = boto3.resource("dynamodb").Table(os.environ["PROFILES_TABLE"])
+            if profiles_table is not None:
+                targets = only_my_school(targets, load_schools(profiles_table))
+        except Exception as e:  # 학교 설정을 못 읽으면 예전처럼 모두에게 보냄
+            print(f"내 학교 설정 읽기 실패: {e}")
     stats["users"] = len(targets)
     if not targets:
         return stats
