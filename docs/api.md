@@ -83,6 +83,23 @@ DynamoDB `SUBSCRIPTIONS_TABLE`에 한 줄이 "사용자 한 명 + 키워드 한 
 
 잘못된 요청은 `400`과 `{ "message": "..." }`.
 
+## /me/profile (로그인 필요)
+
+"내 학교" 설정입니다 (`api/src/user_profile.py`). 이메일·디스코드 로그인 모두 쓸 수 있습니다.
+
+| 요청 | 설명 |
+|---|---|
+| `GET /me/profile` | 내 설정 |
+| `PUT /me/profile` 본문 `{ "school": "전북대", "requestedSchool": null }` | 저장. `school`이 `null`이면 설정을 지움 |
+
+둘 다 `{ "school": "전북대" | "other" | null, "requestedSchool": "서울대" | null }`를 돌려줍니다.
+
+- `school`: `api/src/schools.py`의 학교 중 하나, 목록에 없으면 `"other"`, 정하지 않았으면 `null`. 그 밖의 값은 `400`.
+- `requestedSchool`: `school`이 `"other"`일 때만 저장하는 학교 이름 (30자까지). 어느 학교 요청이 많은지 보려고 받습니다.
+- 디스코드 사용자는 디스코드 ID도 같이 저장해, 크롤러가 학교 공지 DM을 내 학교 글로만 보낼 때 씁니다.
+
+웹은 로그인하지 않아도 이 설정을 브라우저에 저장해 쓰고, 로그인하면 서버 값과 맞춥니다 (서버 값이 있으면 서버 값, 없으면 브라우저 값을 올림).
+
 ## POST /chat (로그인 필요)
 
 수집한 글에서 골라 답하는 챗봇입니다 (`api/src/chat.py`, Gemini). 이메일·디스코드 로그인 모두 쓸 수 있습니다.
@@ -95,6 +112,7 @@ DynamoDB `SUBSCRIPTIONS_TABLE`에 한 줄이 "사용자 한 명 + 키워드 한 
 
 - `message`: 1~500자
 - `history`: 앞선 대화 (선택). 최근 6개까지만 쓰고, 각 1000자로 자릅니다. `role`은 `user` 또는 `model`
+- `school`: 내 학교 (선택). 학교를 말하지 않은 학교 공지 질문에서 이 학교 글을 고릅니다. 목록에 없는 값은 무시합니다.
 
 응답 `200`
 
