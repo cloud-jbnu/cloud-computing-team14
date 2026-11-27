@@ -40,6 +40,11 @@
     if (n < 7) return `${n}일 전`;
     const d = toDate(s); return `${d.getMonth() + 1}.${d.getDate()}`;
   };
+  const monthDay = (s) => { const d = toDate(s); return `${d.getMonth() + 1}.${d.getDate()}`; };
+  const todayText = `${today.getMonth() + 1}월 ${today.getDate()}일 ${'일월화수목금토'[today.getDay()]}요일`;
+  // 마감이 안 지난 글을 마감 가까운 순으로
+  const upcoming = (list) => list.filter((it) => it.deadline && daysLeft(it.deadline) >= 0)
+    .sort((a, b) => daysLeft(a.deadline) - daysLeft(b.deadline));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const linkAttrs = (url) => (url && url !== '#' ? `href="${esc(url)}" target="_blank" rel="noopener"` : 'href="#" data-nolink');
 
@@ -62,7 +67,8 @@
     const q = state.q.trim().toLowerCase();
     let list = state.items.filter((it) => {
       if (state.view === 'saved') { if (!state.bookmarks.has(it.id)) return false; }
-      else if (state.view === 'all') { if (otherSchool(it)) return false; }
+      // 전체 탭: GitHub 저장소는 오른쪽 "오늘의 GitHub"에 있으니 목록에서는 뺌 (검색하면 나옴)
+      else if (state.view === 'all') { if (otherSchool(it) || (it.repo && !q)) return false; }
       else if (it.category !== state.view) return false;
       if (state.subtype && it.subtype !== state.subtype) return false;
       if (state.fields.size && !it.fields.some((f) => state.fields.has(f))) return false;
@@ -83,9 +89,12 @@
     const mine = state.items.filter((it) => !otherSchool(it)); // 내 학교를 정했으면 다른 학교 공지는 세지 않음
     const counts = mine.reduce((m, it) => ((m[it.category] = (m[it.category] || 0) + 1), m), {});
     const tabs = [{ id: 'all', label: '전체', n: mine.length }, ...CATEGORIES.map((c) => ({ ...c, n: counts[c.id] || 0 }))];
-    $('tabs').innerHTML = tabs.map((t) =>
-      `<a class="tab" href="#${t.id}" style="--tab-color: var(--c-${t.id === 'all' ? 'univ' : t.id})" ${state.view === t.id ? 'aria-current="page"' : ''}>${t.label}<span class="n">${t.n}</span></a>`
-    ).join('');
+    const caret = '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+    $('tabs').innerHTML = tabs.map((t) => {
+      const hasMenu = Boolean(SUBTYPES[t.id]);
+      const menuAttrs = hasMenu ? `data-cat="${t.id}" aria-controls="megaMenu" aria-expanded="${menu.open === t.id}"` : '';
+      return `<a class="tab" href="#${t.id}" ${menuAttrs} ${state.view === t.id ? 'aria-current="page"' : ''}>${t.label}<span class="n">${t.n}</span>${hasMenu ? caret : ''}</a>`;
+    }).join('');
     $('savedCount').textContent = state.bookmarks.size;
   }
 
@@ -134,9 +143,15 @@
 
   function renderList() {
     const list = filtered();
-    const title = state.view === 'all' ? '전체' : state.view === 'saved' ? '북마크' : CAT[state.view].label;
+    let title = state.view === 'all' ? '전체' : state.view === 'saved' ? '북마크' : CAT[state.view].label;
+    if (state.view === 'all') {
+      const mine = state.items.filter((it) => !otherSchool(it));
+      const week = upcoming(mine).filter((it) => daysLeft(it.deadline) <= 7).length;
+      title = `이번 주 마감 ${week}건, 모아 둔 글 ${mine.length}건`;
+    }
     $('feedTitle').textContent = title;
     $('feedDesc').textContent = CAT_DESC[state.view];
+    $('listTitle').textContent = state.view === 'all' ? '새 글' : '';
     $('resultCount').textContent = `${list.length}건`;
     $('list').innerHTML = list.map(itemHTML).join('');
     $('list').hidden = list.length === 0;
@@ -159,17 +174,97 @@
     ).join('');
   }
 
-  // 피드 제목 아래 "내 학교" 한 줄
+  // ── 전체 탭 대시보드: 마감 카드 + 내 학교 새 공지
+  function dlCardHTML(it) {
+    const n = daysLeft(it.deadline);
+    return `<a class="dl-card" ${linkAttrs(it.url)} style="--cat-color: var(--c-${it.category})">
+      <span class="dl-top"><span class="dl-kind"><span class="sr-only">${CAT[it.category].label} </span>${esc(it.subtype)}</span><span class="dl-dday ${n <= 3 ? 'soon' : ''}">${ddayText(n)}</span></span>
+      <span class="dl-title">${esc(it.title)}</span>
+      <span class="dl-src">${esc(it.source)} · ${monthDay(it.deadline)} 마감</span>
+    </a>`;
+  }
+
+  function renderDash() {
+    const isAll = state.view === 'all';
+    $('dash').hidden = !isAll;
+    $('deadlinePanel').hidden = isAll; // 전체 탭에서는 위의 카드가 같은 역할
+    $('schoolNews').hidden = true;
+    if (!isAll) return;
+
+    const soon = upcoming(state.items.filter((it) => !otherSchool(it))).slice(0, 4);
+    $('dashCards').innerHTML = soon.length ? soon.map(dlCardHTML).join('') : '<p class="muted">다가오는 마감이 없어요.</p>';
+
+    const s = state.mySchool;
+    if (!isSchool(s)) return;
+    const news = state.items.filter((it) => it.category === 'univ' && it.subtype === s)
+      .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+    if (!news.length) return;
+    $('schoolNews').hidden = false;
+    $('schoolNews').innerHTML = `<div class="panel-head"><h2>${esc(s)} 새 공지</h2><a href="#univ">대학 소식 →</a></div>
+      <ul class="news-list">${news.map((it) => {
+        const first = Array.isArray(it.summary) && it.summary.length ? `<span class="s">${esc(it.summary[0])}</span>` : '';
+        return `<li><a ${linkAttrs(it.url)}><span class="news-src">${esc(it.source.replace(s, '').trim() || it.source)}</span>
+          <span><span class="t">${esc(it.title)}</span>${first}</span><span class="r">${relDate(it.date)}</span></a></li>`;
+      }).join('')}</ul>`;
+  }
+
+  // ── 상단 탭 세부 메뉴 (데스크톱: 마우스를 올리면, 키보드: 탭으로 들어가면 열림)
+  const menu = { open: null, timer: 0, skipFocus: false };
+
+  function megaHTML(cat) {
+    const inCat = state.items.filter((it) => it.category === cat);
+    const subs = SUBTYPES[cat].map((s) => {
+      const list = inCat.filter((it) => it.subtype === s);
+      const next = upcoming(list)[0];
+      const latest = list.map((it) => it.date).sort().pop();
+      const note = next ? `가장 가까운 마감 ${ddayText(daysLeft(next.deadline))}` : latest ? `최근 글 ${relDate(latest)}` : '아직 글이 없어요';
+      const mine = cat === 'univ' && s === state.mySchool ? '<span class="mega-mine">내 학교</span>' : '';
+      return `<a class="mega-sub" href="#${cat}" data-go-cat="${cat}" data-go-sub="${esc(s)}">
+        <span class="mega-sub-top"><b>${esc(s)}</b>${mine}<span class="n">${list.length}건</span></span>
+        <span class="mega-sub-note">${note}</span></a>`;
+    }).join('');
+    // 오른쪽: 마감 가까운 글 2개 (마감 있는 글이 없으면 최신 글). 대학 소식은 내 학교 공지 먼저.
+    const pool = cat === 'univ' && isSchool(state.mySchool) ? inCat.filter((it) => it.subtype === state.mySchool) : inCat;
+    const soon = upcoming(pool);
+    const picks = (soon.length ? soon : [...pool].sort((a, b) => b.date.localeCompare(a.date))).slice(0, 2);
+    const pickTitle = soon.length ? '마감 임박' : '최근 글';
+    return `<div class="mega-inner">
+      <div class="mega-main">
+        <div class="mega-head"><b>${CAT[cat].label}</b><a href="#${cat}" data-go-cat="${cat}" data-go-sub="">전체 ${inCat.length}건 보기 →</a></div>
+        <div class="mega-subs">${subs}</div>
+      </div>
+      <div class="mega-side">
+        <span class="mega-side-title">${pickTitle}</span>
+        ${picks.map((it) => {
+          const tag = it.deadline && daysLeft(it.deadline) >= 0 ? ddayText(daysLeft(it.deadline)) : esc(it.subtype);
+          const hot = it.deadline && daysLeft(it.deadline) >= 0 && daysLeft(it.deadline) <= 7;
+          return `<a class="mega-pick" ${linkAttrs(it.url)}><span class="mega-tag ${hot ? 'soon' : ''}">${tag}</span><span>${esc(it.title)}</span></a>`;
+        }).join('') || '<p class="muted">아직 글이 없어요.</p>'}
+      </div>
+    </div>`;
+  }
+
+  function renderMenu() {
+    const el = $('megaMenu');
+    el.hidden = !menu.open || !state.items.length;
+    el.innerHTML = el.hidden ? '' : megaHTML(menu.open);
+    document.querySelectorAll('.tab[data-cat]').forEach((t) => t.setAttribute('aria-expanded', String(t.dataset.cat === menu.open)));
+  }
+  function openMenu(cat) { clearTimeout(menu.timer); if (menu.open !== cat) { menu.open = cat; renderMenu(); } }
+  function closeMenu() { clearTimeout(menu.timer); if (menu.open) { menu.open = null; renderMenu(); } }
+
+  // 피드 제목 위 "내 학교" 한 줄 (전체 탭에서는 오늘 날짜도)
   function renderSchoolLine() {
     const s = state.mySchool;
     const text = isSchool(s) ? `<b>내 학교: ${esc(s)}</b> · 대학 소식은 ${esc(s)} 공지만 보여요`
       : s === 'other' ? '<b>내 학교: 목록에 없음</b> · 전체 탭에서는 학교 공지를 빼고 보여요'
       : '내 학교를 정하면 우리 학교 공지만 모아 볼 수 있어요';
     const msg = state.schoolMsg ? ` <span class="school-msg">${esc(state.schoolMsg)}</span>` : '';
-    $('schoolLine').innerHTML = `${text} <button type="button" class="auth-link" data-open-school>${s ? '바꾸기' : '학교 고르기'}</button>${msg}`;
+    const date = state.view === 'all' ? `<span class="today">${todayText}</span> · ` : '';
+    $('schoolLine').innerHTML = `${date}${text} <button type="button" class="auth-link" data-open-school>${s ? '바꾸기' : '학교 고르기'}</button>${msg}`;
   }
 
-  function render() { renderTabs(); renderFilters(); renderList(); renderRail(); renderSchoolLine(); }
+  function render() { renderTabs(); renderFilters(); renderList(); renderDash(); renderRail(); renderSchoolLine(); renderMenu(); }
 
   // ── 로그인 · 키워드 구독
   const NOT_CONFIGURED = '로그인이 아직 연결되지 않았어요. 배포한 뒤 js/api.js에 API_BASE, AUTH_BASE, AUTH_CLIENT_ID를 넣어 주세요.';
@@ -411,6 +506,18 @@
 
   // ── 이벤트
   document.addEventListener('click', (e) => {
+    // 세부 메뉴에서 고르면: 그 카테고리로 가서 구분 칩을 골라 둠 ("전체 N건 보기"는 칩 없이)
+    const go = e.target.closest('[data-go-cat]');
+    if (go) {
+      e.preventDefault();
+      const cat = go.dataset.goCat;
+      state.view = cat;
+      state.subtype = go.dataset.goSub || null;
+      closeMenu();
+      if (location.hash !== `#${cat}`) location.hash = cat; // hashchange에서 다시 그림 (view가 같아서 칩은 유지)
+      else { render(); window.scrollTo(0, 0); }
+      return;
+    }
     const sub = e.target.closest('[data-subtype]');
     if (sub) { const v = sub.dataset.subtype; state.subtype = v === '전체' ? null : v; renderFilters(); renderList(); return; }
     const field = e.target.closest('[data-field]');
@@ -478,7 +585,37 @@
     syncThemeBtn();
   });
   syncThemeBtn();
-  window.addEventListener('hashchange', () => { readHash(); render(); window.scrollTo(0, 0); });
+  window.addEventListener('hashchange', () => { menu.open = null; readHash(); render(); window.scrollTo(0, 0); });
+
+  // 세부 메뉴 열고 닫기: 마우스는 잠깐 머물러야 열리고, 탭·메뉴 밖으로 나가면 조금 있다 닫힘
+  const navZone = $('navZone');
+  navZone.addEventListener('pointerover', (e) => {
+    if (e.pointerType !== 'mouse') return; // 터치에서는 탭을 누르면 바로 이동
+    const tab = e.target.closest('.tab');
+    if (!tab) { if (e.target.closest('#megaMenu')) clearTimeout(menu.timer); return; }
+    clearTimeout(menu.timer);
+    const cat = tab.dataset.cat || null;
+    menu.timer = setTimeout(() => (cat ? openMenu(cat) : closeMenu()), menu.open ? 60 : 150);
+  });
+  navZone.addEventListener('pointerleave', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    clearTimeout(menu.timer);
+    menu.timer = setTimeout(closeMenu, 200);
+  });
+  navZone.addEventListener('focusin', (e) => {
+    const tab = e.target.closest('.tab');
+    if (!tab || menu.skipFocus) { menu.skipFocus = false; return; }
+    if (!tab.matches(':focus-visible')) return;
+    if (tab.dataset.cat) openMenu(tab.dataset.cat); else closeMenu();
+  });
+  navZone.addEventListener('focusout', (e) => { if (!navZone.contains(e.relatedTarget)) closeMenu(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !menu.open) return;
+    const tab = document.querySelector(`.tab[data-cat="${menu.open}"]`);
+    const inside = navZone.contains(document.activeElement);
+    closeMenu();
+    if (inside && tab && document.activeElement !== tab) { menu.skipFocus = true; tab.focus(); }
+  });
 
   // ── 시작
   readHash();
