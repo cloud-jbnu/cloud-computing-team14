@@ -131,3 +131,15 @@ def test_parse_date(text, expected):
 @pytest.mark.parametrize("text", ["", None, "상시", "2026-13-40", "새 글"])
 def test_parse_date_unreadable(text):
     assert item.parse_date(text, base=BASE) is None
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("서울 강서구", "서울"), ("경기도 성남시", "경기"), ("전북특별자치도 전주시", "전북"),
+    ("경상남도 창원시", "경남"), ("충청북도", "충북"), ("재택", None), ("", None), (None, None),
+])
+def test_region_of(text, expected):
+    assert item.region_of(text) == expected
+
+
+def test_regions_of_keeps_order_without_duplicates():
+    assert item.regions_of(["경기 성남시", "서울 강남구", "경기 판교", "원격"]) == ["경기", "서울"]

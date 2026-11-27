@@ -16,6 +16,8 @@
     items: [],
     view: 'all',          // all | univ | contest | jobs | tech | saved
     subtype: null,
+    region: null,         // 취업·인턴 탭의 지역 칩 (시·도)
+    venue: null,          // 공모전·대회 탭의 진행 방식 칩 (online | offline)
     fields: new Set(),
     q: '',
     sort: 'latest',
@@ -27,6 +29,10 @@
     schoolMsg: '',        // 내 학교 저장 관련 안내
   };
   const isSchool = (s) => SUBTYPES.univ.includes(s);
+  const hasRegion = (it) => Array.isArray(it.regions) && it.regions.length > 0;
+  const VENUE_LABEL = { online: '온라인', offline: '오프라인', hybrid: '온·오프라인' };
+  // 글 아래에 보여 줄 장소: "오프라인 · 서울", "서울·경기"
+  const placeText = (it) => [VENUE_LABEL[it.venue], hasRegion(it) ? it.regions.join('·') : ''].filter(Boolean).join(' · ');
 
   // ── 날짜 유틸
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -54,7 +60,10 @@
     const valid = ['all', 'saved', ...CATEGORIES.map((c) => c.id)];
     const next = valid.includes(h) ? h : 'all';
     // 대학 소식 탭에 들어오면 내 학교 칩이 골라진 상태로 시작 (전체 칩을 누르면 모든 학교)
-    if (next !== state.view) state.subtype = next === 'univ' && isSchool(state.mySchool) ? state.mySchool : null;
+    if (next !== state.view) {
+      state.subtype = next === 'univ' && isSchool(state.mySchool) ? state.mySchool : null;
+      state.region = null; state.venue = null;
+    }
     state.view = next;
   }
 
@@ -71,6 +80,9 @@
       else if (state.view === 'all') { if (otherSchool(it) || (it.repo && !q)) return false; }
       else if (it.category !== state.view) return false;
       if (state.subtype && it.subtype !== state.subtype) return false;
+      // 지역·방식 정보가 없는 글은 걸러 내지 않음 (예전에 모은 글, 근무지를 안 적은 공고)
+      if (state.region && hasRegion(it) && !it.regions.includes(state.region)) return false;
+      if (state.venue && it.venue && it.venue !== 'hybrid' && it.venue !== state.venue) return false;
       if (state.fields.size && !it.fields.some((f) => state.fields.has(f))) return false;
       if (q && !`${it.title} ${it.source} ${it.subtype}`.toLowerCase().includes(q)) return false;
       return true;
@@ -108,6 +120,23 @@
         return `<button type="button" class="chip" data-subtype="${esc(s)}" aria-pressed="${on}">${esc(s)}</button>`;
       }).join('');
     }
+    // 취업·인턴: 지역 칩 (내 학교 지역 먼저, 그다음 글이 있는 시·도) / 공모전·대회: 온라인·오프라인 칩
+    const place = state.view === 'jobs' || state.view === 'contest';
+    $('placeRow').hidden = !place;
+    if (state.view === 'jobs') {
+      const mine = SCHOOL_REGION[state.mySchool];
+      const present = new Set(state.items.filter((it) => it.category === 'jobs' && hasRegion(it)).flatMap((it) => it.regions));
+      const regions = REGIONS.filter((r) => r === mine || present.has(r)).sort((a, b) => (b === mine) - (a === mine));
+      $('placeLabel').textContent = '지역';
+      $('placeChips').innerHTML = [null, ...regions].map((r) =>
+        `<button type="button" class="chip" data-region="${r || ''}" aria-pressed="${state.region === r}">${r ? esc(r) : '전체'}${r && r === mine ? '<span class="chip-note">내 학교</span>' : ''}</button>`
+      ).join('');
+    } else if (state.view === 'contest') {
+      $('placeLabel').textContent = '방식';
+      $('placeChips').innerHTML = [{ id: null, label: '전체' }, ...VENUES].map((v) =>
+        `<button type="button" class="chip" data-venue="${v.id || ''}" aria-pressed="${state.venue === v.id}">${v.label}</button>`
+      ).join('');
+    }
     $('fieldChips').innerHTML = FIELDS.map((f) =>
       `<button type="button" class="chip" data-field="${f.id}" aria-pressed="${state.fields.has(f.id)}">${f.label}</button>`
     ).join('');
@@ -132,7 +161,7 @@
         </div>
         <a class="item-title ${it.repo ? 'mono' : ''}" ${linkAttrs(it.url)}>${esc(it.title)}</a>
         ${summary}
-        <div class="tags">${it.fields.map((f) => `<span>#${FIELD[f].label}</span>`).join('')}${repo}</div>
+        <div class="tags">${placeText(it) ? `<span class="place">${esc(placeText(it))}</span>` : ''}${it.fields.map((f) => `<span>#${FIELD[f].label}</span>`).join('')}${repo}</div>
       </div>
       <div class="item-side">
         ${dday || '<span></span>'}
@@ -152,7 +181,11 @@
     $('feedTitle').textContent = title;
     $('feedDesc').textContent = CAT_DESC[state.view];
     $('listTitle').textContent = state.view === 'all' ? '새 글' : '';
-    $('resultCount').textContent = `${list.length}건`;
+    // 지역·방식을 골랐을 때, 정보가 없어 함께 보이는 글 수를 알려 줌
+    const unknown = state.region ? list.filter((it) => !hasRegion(it)).length
+      : state.venue ? list.filter((it) => !it.venue).length : 0;
+    const what = state.region ? '근무지' : '진행 방식';
+    $('resultCount').textContent = `${list.length}건${unknown ? ` (${what} 정보가 없는 ${unknown}건 포함)` : ''}`;
     $('list').innerHTML = list.map(itemHTML).join('');
     $('list').hidden = list.length === 0;
     $('empty').hidden = list.length !== 0;
@@ -520,6 +553,10 @@
     }
     const sub = e.target.closest('[data-subtype]');
     if (sub) { const v = sub.dataset.subtype; state.subtype = v === '전체' ? null : v; renderFilters(); renderList(); return; }
+    const region = e.target.closest('[data-region]');
+    if (region) { state.region = region.dataset.region || null; renderFilters(); renderList(); return; }
+    const venue = e.target.closest('[data-venue]');
+    if (venue) { state.venue = venue.dataset.venue || null; renderFilters(); renderList(); return; }
     const field = e.target.closest('[data-field]');
     if (field) { const f = field.dataset.field; state.fields.has(f) ? state.fields.delete(f) : state.fields.add(f); renderFilters(); renderList(); return; }
     const bm = e.target.closest('[data-bm]');
@@ -571,7 +608,7 @@
   $('search').addEventListener('input', (e) => { state.q = e.target.value; renderList(); });
   $('sort').addEventListener('change', (e) => { state.sort = e.target.value; renderList(); });
   $('resetBtn').addEventListener('click', () => {
-    state.fields.clear(); state.subtype = null; state.q = ''; $('search').value = ''; renderFilters(); renderList();
+    state.fields.clear(); state.subtype = null; state.region = null; state.venue = null; state.q = ''; $('search').value = ''; renderFilters(); renderList();
   });
   const syncThemeBtn = () => {
     const dark = document.documentElement.dataset.theme === 'dark';

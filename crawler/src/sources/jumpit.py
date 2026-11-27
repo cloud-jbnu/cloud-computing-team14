@@ -42,6 +42,7 @@ def parse(data, today=None):
             "fields": _fields(p.get("jobCategory")),
             "date": today,
             "url": PAGE_URL.format(id=p["id"]),
+            "regions": item.regions_of(p.get("locations")),  # 근무지 "서울 강서구" → "서울"
             "body": "직무: {}\n기술: {}\n근무지: {}".format(
                 p.get("jobCategory") or "", ", ".join(p.get("techStacks") or []), ", ".join(p.get("locations") or [])),
         }

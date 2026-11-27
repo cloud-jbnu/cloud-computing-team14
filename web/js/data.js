@@ -27,6 +27,15 @@ window.SUBTYPES = {
   tech:    ['GitHub', '최신기술', '이슈'],
 };
 
+// 근무지·행사 장소(시·도)와 대회 진행 방식. crawler/src/common/item.py의 REGIONS·VENUES와 같은 값
+window.REGIONS = ['서울', '경기', '인천', '강원', '대전', '세종', '충북', '충남', '광주', '전북', '전남', '대구', '경북', '부산', '울산', '경남', '제주'];
+window.VENUES = [
+  { id: 'online', label: '온라인' },
+  { id: 'offline', label: '오프라인' },
+];
+// 내 학교가 있는 시·도 (취업·인턴 지역 칩에서 맨 앞에 보여 줌)
+window.SCHOOL_REGION = { 전북대: '전북', 충북대: '충북', 경북대: '대구', 부산대: '부산' };
+
 window.SAMPLE_ITEMS = [
   // ── 대학 소식 (학교 전체 공지)
   { id: 'u1', category: 'univ', subtype: '전북대', source: '전북대 SW중심대학사업단', title: '동계 클라우드 부트캠프 수강생 모집', fields: ['cloud', 'backend'], date: '2026-11-10', deadline: '2026-11-20', url: 'https://www.jbnu.ac.kr', summary: ['재학생 대상 4주 과정으로 AWS 기초부터 배포까지 실습함', '11월 20일까지 온라인으로 신청하며 수료 시 비교과 포인트를 줌'] },
@@ -39,23 +48,23 @@ window.SAMPLE_ITEMS = [
   { id: 'u8', category: 'univ', subtype: '부산대', source: '부산대 학생과', title: '온디바이스 AI 연구실 학부연구생 모집', fields: ['ai', 'mobile'], date: '2026-11-04', deadline: '2026-11-30', url: 'https://www.pusan.ac.kr', summary: ['3학년 이상 재학생을 대상으로 겨울방학 동안 연구에 참여함', '11월 30일까지 지원서와 성적증명서를 내야 함'] },
 
   // ── 공모전·대회
-  { id: 'c1', category: 'contest', subtype: '해커톤', source: '대학생 개발자 연합', title: '제12회 대학생 AI 해커톤 참가팀 모집', fields: ['ai', 'backend'], date: '2026-11-10', deadline: '2026-11-24', url: '#', summary: ['3~4인 팀으로 참가하며 AI를 활용한 서비스를 48시간 동안 만듦', '11월 24일까지 참가 신청을 받음'] },
-  { id: 'c2', category: 'contest', subtype: 'CTF', source: '정보보호 동아리 연합', title: '화이트햇 CTF 2026 예선 참가 접수', fields: ['security', 'network'], date: '2026-11-09', deadline: '2026-11-18', url: '#' },
-  { id: 'c3', category: 'contest', subtype: '공모전', source: '클라우드 산업 협회', title: '클라우드 네이티브 아키텍처 설계 공모전', fields: ['cloud', 'backend'], date: '2026-11-08', deadline: '2026-12-05', url: '#' },
-  { id: 'c4', category: 'contest', subtype: '공모전', source: '모바일 서비스 포럼', title: '대학생 모바일 앱 아이디어 공모전', fields: ['mobile', 'frontend'], date: '2026-11-07', deadline: '2026-11-29', url: '#' },
-  { id: 'c5', category: 'contest', subtype: '경진대회', source: '공공데이터 활용 센터', title: '공공데이터 분석·시각화 경진대회', fields: ['data', 'ai'], date: '2026-11-06', deadline: '2026-12-12', url: '#' },
-  { id: 'c6', category: 'contest', subtype: '경진대회', source: '전국 대학 알고리즘 연합', title: '동계 대학생 알고리즘 대회 (팀전 3인)', fields: ['backend'], date: '2026-11-05', deadline: '2026-11-15', url: '#' },
-  { id: 'c7', category: 'contest', subtype: '해커톤', source: '오픈소스 커뮤니티', title: '겨울 오픈소스 컨트리뷰션 해커톤', fields: ['backend', 'frontend'], date: '2026-11-04', deadline: '2026-11-27', url: '#' },
+  { id: 'c1', category: 'contest', subtype: '해커톤', source: '대학생 개발자 연합', title: '제12회 대학생 AI 해커톤 참가팀 모집', fields: ['ai', 'backend'], date: '2026-11-10', deadline: '2026-11-24', url: '#', venue: 'offline', regions: ['서울'], summary: ['3~4인 팀으로 참가하며 AI를 활용한 서비스를 48시간 동안 만듦', '11월 24일까지 참가 신청을 받음'] },
+  { id: 'c2', category: 'contest', subtype: 'CTF', source: '정보보호 동아리 연합', title: '화이트햇 CTF 2026 예선 참가 접수', fields: ['security', 'network'], date: '2026-11-09', deadline: '2026-11-18', url: '#', venue: 'online' },
+  { id: 'c3', category: 'contest', subtype: '공모전', source: '클라우드 산업 협회', title: '클라우드 네이티브 아키텍처 설계 공모전', fields: ['cloud', 'backend'], date: '2026-11-08', deadline: '2026-12-05', url: '#', venue: 'online' },
+  { id: 'c4', category: 'contest', subtype: '공모전', source: '모바일 서비스 포럼', title: '대학생 모바일 앱 아이디어 공모전', fields: ['mobile', 'frontend'], date: '2026-11-07', deadline: '2026-11-29', url: '#', venue: 'hybrid' },
+  { id: 'c5', category: 'contest', subtype: '경진대회', source: '공공데이터 활용 센터', title: '공공데이터 분석·시각화 경진대회', fields: ['data', 'ai'], date: '2026-11-06', deadline: '2026-12-12', url: '#', venue: 'online' },
+  { id: 'c6', category: 'contest', subtype: '경진대회', source: '전국 대학 알고리즘 연합', title: '동계 대학생 알고리즘 대회 (팀전 3인)', fields: ['backend'], date: '2026-11-05', deadline: '2026-11-15', url: '#', venue: 'offline', regions: ['대전'] },
+  { id: 'c7', category: 'contest', subtype: '해커톤', source: '오픈소스 커뮤니티', title: '겨울 오픈소스 컨트리뷰션 해커톤', fields: ['backend', 'frontend'], date: '2026-11-04', deadline: '2026-11-27', url: '#', venue: 'online' },
   { id: 'c8', category: 'contest', subtype: '공모전', source: '웹 접근성 연구회', title: '웹 접근성 UI 개선 챌린지', fields: ['frontend'], date: '2026-11-03', deadline: '2026-12-01', url: '#' },
 
   // ── 취업·인턴
-  { id: 'j1', category: 'jobs', subtype: '인턴', source: '루프랩', title: '2027 동계 백엔드 개발 인턴 (8주)', fields: ['backend', 'cloud'], date: '2026-11-10', deadline: '2026-11-23', url: '#', summary: ['8주 동안 백엔드 팀에서 실제 서비스 개발에 참여함', '졸업 예정자와 휴학생도 지원할 수 있으며 11월 23일에 마감함'] },
-  { id: 'j2', category: 'jobs', subtype: '신입', source: '픽셀하우스', title: '프론트엔드 엔지니어 신입 공개채용', fields: ['frontend'], date: '2026-11-09', deadline: '2026-11-30', url: '#' },
-  { id: 'j3', category: 'jobs', subtype: '채용연계', source: '시큐어웨이브', title: '보안관제·침해대응 채용연계형 인턴', fields: ['security', 'network'], date: '2026-11-08', deadline: '2026-11-17', url: '#' },
-  { id: 'j4', category: 'jobs', subtype: '인턴', source: '데이터포레스트', title: 'ML 엔지니어 체험형 인턴', fields: ['ai', 'data'], date: '2026-11-07', deadline: '2026-11-26', url: '#' },
-  { id: 'j5', category: 'jobs', subtype: '신입', source: '클라우드브릿지', title: 'DevOps·SRE 신입 엔지니어', fields: ['cloud', 'network'], date: '2026-11-06', deadline: '2026-12-08', url: '#' },
-  { id: 'j6', category: 'jobs', subtype: '인턴', source: '모빌리언', title: 'Android·iOS 앱 개발 인턴', fields: ['mobile'], date: '2026-11-05', deadline: '2026-11-22', url: '#' },
-  { id: 'j7', category: 'jobs', subtype: '채용연계', source: '넷코어', title: '네트워크 엔지니어 채용연계형 인턴', fields: ['network'], date: '2026-11-04', deadline: '2026-11-28', url: '#' },
+  { id: 'j1', category: 'jobs', subtype: '인턴', source: '루프랩', title: '2027 동계 백엔드 개발 인턴 (8주)', fields: ['backend', 'cloud'], date: '2026-11-10', deadline: '2026-11-23', url: '#', regions: ['서울'], summary: ['8주 동안 백엔드 팀에서 실제 서비스 개발에 참여함', '졸업 예정자와 휴학생도 지원할 수 있으며 11월 23일에 마감함'] },
+  { id: 'j2', category: 'jobs', subtype: '신입', source: '픽셀하우스', title: '프론트엔드 엔지니어 신입 공개채용', fields: ['frontend'], date: '2026-11-09', deadline: '2026-11-30', url: '#', regions: ['경기'] },
+  { id: 'j3', category: 'jobs', subtype: '채용연계', source: '시큐어웨이브', title: '보안관제·침해대응 채용연계형 인턴', fields: ['security', 'network'], date: '2026-11-08', deadline: '2026-11-17', url: '#', regions: ['서울'] },
+  { id: 'j4', category: 'jobs', subtype: '인턴', source: '데이터포레스트', title: 'ML 엔지니어 체험형 인턴', fields: ['ai', 'data'], date: '2026-11-07', deadline: '2026-11-26', url: '#', regions: ['부산'] },
+  { id: 'j5', category: 'jobs', subtype: '신입', source: '클라우드브릿지', title: 'DevOps·SRE 신입 엔지니어', fields: ['cloud', 'network'], date: '2026-11-06', deadline: '2026-12-08', url: '#', regions: ['대전'] },
+  { id: 'j6', category: 'jobs', subtype: '인턴', source: '모빌리언', title: 'Android·iOS 앱 개발 인턴', fields: ['mobile'], date: '2026-11-05', deadline: '2026-11-22', url: '#', regions: ['전북'] },
+  { id: 'j7', category: 'jobs', subtype: '채용연계', source: '넷코어', title: '네트워크 엔지니어 채용연계형 인턴', fields: ['network'], date: '2026-11-04', deadline: '2026-11-28', url: '#', regions: ['대구', '경북'] },
   { id: 'j8', category: 'jobs', subtype: '신입', source: '넥스트스택', title: '풀스택 개발자 (Node.js · React) 신입', fields: ['backend', 'frontend'], date: '2026-11-03', deadline: '2026-12-03', url: '#' },
 
   // ── 테크 트렌드 (GitHub · 최신기술 · 이슈)
