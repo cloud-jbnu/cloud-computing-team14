@@ -33,6 +33,17 @@ def test_validate_drops_bad_items():
     assert items[0]["fields"] == ["ai"]   # 정해진 값이 아닌 분야는 뺌
 
 
+def test_validate_keeps_known_regions_and_venue():
+    (good, unknown, empty), _ = handler.validate([
+        raw("r-1", regions=["서울", "없는곳", "서울", "경기"], venue="offline"),
+        raw("r-2", regions="서울", venue="어딘가"),
+        raw("r-3", regions=["화성"]),
+    ])
+    assert good["regions"] == ["서울", "경기"] and good["venue"] == "offline"
+    assert "regions" not in unknown and "venue" not in unknown   # 형식이 틀린 값은 버리고 글은 남김
+    assert "regions" not in empty
+
+
 def test_find_new_counts_each_stage():
     items_table, seen_table = tables()
     items_table.put_item(Item={"id": "jbnu-1"})

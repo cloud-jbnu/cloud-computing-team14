@@ -21,7 +21,7 @@ import channels
 import dedupe
 import notify
 import summarize
-from common.item import CATEGORIES, FIELDS
+from common.item import CATEGORIES, FIELDS, REGIONS, VENUES
 from sources import dev_event, geeknews, github_trending, jumpit, univ_cbnu, univ_jbnu, univ_knu, univ_pnu
 
 # 수집기 등록 — 새 사이트를 만들면 여기에 추가.
@@ -99,6 +99,14 @@ def clean(item):
     summary = item.get("summary")
     if isinstance(summary, list) and summary:
         out["summary"] = [str(s) for s in summary]
+
+    regions = item.get("regions")
+    if isinstance(regions, list):
+        regions = [r for r in dict.fromkeys(regions) if r in REGIONS]
+        if regions:
+            out["regions"] = regions
+    if item.get("venue") in VENUES:
+        out["venue"] = item["venue"]
     return out, None
 
 

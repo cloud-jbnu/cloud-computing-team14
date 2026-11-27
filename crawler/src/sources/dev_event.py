@@ -41,6 +41,27 @@ def _subtype(title):
     return "경진대회"
 
 
+def _venue(raw_tags):
+    """분류 `온라인` / `오프라인(서울 강남구)` / `온오프라인` → ("online"|"offline"|"hybrid"|None, ["서울"])"""
+    online = offline = False
+    places = []
+    for tag in raw_tags:
+        name, _, rest = tag.partition("(")
+        name = name.replace(" ", "")
+        if name in ("온오프라인", "온·오프라인", "온/오프라인"):
+            online = offline = True
+        elif name == "온라인":
+            online = True
+        elif name == "오프라인":
+            offline = True
+        else:
+            continue
+        if rest:
+            places.append(rest.rstrip(")"))
+    venue = "hybrid" if online and offline else "offline" if offline else "online" if online else None
+    return venue, item.regions_of(places)
+
+
 def _dates(text, year, month):
     """"10. 12(월) ~ 11. 20(금) 17:00" → ["2026-10-12", "2026-11-20"]. 연도는 제목 줄(## `26년 11월`)에서 가져옵니다."""
     result = []
@@ -58,9 +79,11 @@ def _dates(text, year, month):
 
 
 def _build(entry, today):
-    tags = [t.split("(")[0].strip() for t in re.findall(r"`([^`]+)`", entry.get("분류", ""))]
+    raw_tags = re.findall(r"`([^`]+)`", entry.get("분류", ""))
+    tags = [t.split("(")[0].strip() for t in raw_tags]
     if not CONTEST_TAGS & set(tags):
         return None
+    venue, regions = _venue(raw_tags)
     out = {
         "id": item.hash_id("devevent", dedupe.url_key(entry["url"])),
         "category": "contest",
@@ -72,6 +95,10 @@ def _build(entry, today):
         "url": entry["url"],
         "body": "\n".join(f"{k}: {entry[k]}" for k in ("분류", "주최", "접수", "일시") if entry.get(k)),
     }
+    if venue:
+        out["venue"] = venue
+    if regions:
+        out["regions"] = regions
     # 마감일: 접수 기간의 마지막 날. 접수 기간이 없으면 행사 시작일.
     if entry.get("접수"):
         days = _dates(entry["접수"], entry["year"], entry["month"])

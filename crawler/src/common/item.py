@@ -17,6 +17,38 @@ FIELDS = ["backend", "frontend", "ai", "data", "cloud", "network", "security", "
 # 공지를 모으는 학교 (category가 univ인 글의 subtype). 학교 수집기(sources/univ_*.py)의 SCHOOL과 같아야 하고,
 # 웹(web/js/data.js의 SUBTYPES.univ)과 API(api/src/schools.py)에도 같은 목록이 있습니다.
 SCHOOLS = ["전북대", "충북대", "경북대", "부산대"]
+# Item의 regions(근무지·행사 장소, 시·도)와 venue(대회 진행 방식)에 쓸 수 있는 값. 웹(web/js/data.js)과 docs/api.md에도 있습니다.
+REGIONS = ["서울", "경기", "인천", "강원", "대전", "세종", "충북", "충남", "광주", "전북", "전남",
+           "대구", "경북", "부산", "울산", "경남", "제주"]
+VENUES = ["online", "offline", "hybrid"]
+
+# 시·도를 긴 이름으로 쓴 경우 ("서울특별시", "전북특별자치도", "경상남도"…)
+_REGION_ALIASES = [
+    ("충청북", "충북"), ("충청남", "충남"), ("전라북", "전북"), ("전라남", "전남"),
+    ("경상북", "경북"), ("경상남", "경남"),
+]
+
+
+def region_of(text):
+    """"서울 강서구", "경기도 성남시", "전북특별자치도 전주시" → "서울", "경기", "전북". 모르면 None."""
+    text = (text or "").strip()
+    for long, short in _REGION_ALIASES:
+        if text.startswith(long):
+            return short
+    for region in REGIONS:
+        if text.startswith(region):
+            return region
+    return None
+
+
+def regions_of(texts):
+    """여러 장소에서 시·도만 뽑아 겹치지 않게, 처음 나온 순서대로."""
+    out = []
+    for text in texts or []:
+        region = region_of(text)
+        if region and region not in out:
+            out.append(region)
+    return out
 
 
 def today():

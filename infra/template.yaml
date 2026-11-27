@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  컴공레이더 서버리스 백엔드 (AWS Academy Learner Lab용).
+  컴퍼스 서버리스 백엔드 (AWS Academy Learner Lab용).
   Learner Lab은 IAM 역할을 새로 만들 수 없으므로 모든 Lambda가 미리 만들어진 LabRole을 씁니다.
 
 Parameters:
@@ -225,8 +225,8 @@ Resources:
             Priority: 1
       VerificationMessageTemplate:
         DefaultEmailOption: CONFIRM_WITH_CODE
-        EmailSubject: "[컴공레이더] 인증 코드"
-        EmailMessage: "컴공레이더 인증 코드는 {####} 입니다. 화면에 입력해 주세요."
+        EmailSubject: "[컴퍼스] 인증 코드"
+        EmailMessage: "컴퍼스 인증 코드는 {####} 입니다. 화면에 입력해 주세요."
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain         # 로그인 주소: https://<Domain>.auth.<리전>.amazoncognito.com

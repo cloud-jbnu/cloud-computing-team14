@@ -1,3 +1,4 @@
+import pytest
 """수집기 파서 테스트. tests/fixtures/ 에 저장해 둔 실제 응답 조각으로 돌립니다 (네트워크 없음)."""
 import handler
 from sources import dev_event, geeknews, github_trending
@@ -75,6 +76,22 @@ def test_dev_event_fields(fixture_text):
     assert algo["deadline"] == "2027-01-08"           # 12월 목록의 "1. 08"은 내년
 
 
+def test_dev_event_venue_and_region(fixture_text):
+    daegu, hackathon, algo = assert_valid(dev_event.parse(fixture_text("dev_event_list.md"), today=TODAY))
+    assert daegu["venue"] == "online" and "regions" not in daegu
+    assert hackathon["venue"] == "offline" and hackathon["regions"] == ["서울"]   # `오프라인(서울 강남구)`
+    assert algo["venue"] == "online"
+
+
+@pytest.mark.parametrize("tags, expected", [
+    (["온오프라인", "대회"], ("hybrid", [])),
+    (["오프라인(부산 해운대구)", "대회"], ("offline", ["부산"])),
+    (["무료", "대회"], (None, [])),
+])
+def test_dev_event_venue_tags(tags, expected):
+    assert dev_event._venue(tags) == expected
+
+
 def test_dev_event_skips_contests_past_deadline(fixture_text):
     items = dev_event.parse(fixture_text("dev_event_list.md"), today="2026-11-21")
     assert [it["deadline"] for it in items] == ["2026-11-21", "2027-01-08"]   # 11-20 마감은 빠지고 마감 당일은 남음
@@ -102,6 +119,7 @@ def test_jumpit(fixture_text):
     assert web["fields"] == ["backend", "frontend", "mobile", "security"]
     assert web["deadline"] == "2026-12-16"
     assert "React" in web["body"] and "서울 강서구" in web["body"]
+    assert web["regions"] == ["서울"] and sil["regions"] == ["경기"]   # 근무지 → 시·도
     assert sil["fields"] == ["cloud", "data"]
     assert "deadline" not in hil                      # 상시 채용은 마감일 없음
 
